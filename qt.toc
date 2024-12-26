@@ -1,0 +1,19 @@
+## Interface: 11302
+## Title: QuestTarget
+## Notes: A simple addon
+## Author: YourName
+## Version: 1.0
+## Dependencies: Questie
+## SavedVariables: QuestTargetSettings
+
+# Main addon file first
+qt.lua
+
+# Core files
+Core/QuestObjectives.lua
+Core/RangeDetector.lua
+Core/MarkerManager.lua
+Core/MacroManager.lua
+
+# UI files
+UI/TargetFrame.lua
