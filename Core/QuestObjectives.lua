@@ -7,7 +7,11 @@
         name = string,        -- Name of the unit
         isTarget = boolean,   -- True if this is a quest target (monster or item dropper)
         isTurnInNpc = boolean, -- True if this is a quest turn-in NPC
-        isVisible = boolean   -- True if unit is currently in range (updated by RangeDetector)
+        isVisible = boolean,  -- True if unit is currently in range (updated by RangeDetector)
+        progress = number,    -- Progress percentage for this unit's objective (0-100)
+        questName = string,   -- Name of the quest this unit is related to
+        objectiveName = string, -- Description of the specific objective
+        objectiveType = string  -- Type of objective: "kill" or "collect"
     }
 ]]
 
@@ -89,7 +93,9 @@ ns.QuestObjectives = {
             if quest.Objectives then
                 for _, objective in pairs(quest.Objectives) do
                     -- Only process incomplete objectives
-                    if objective.Needed and objective.Collected and objective.Needed ~= objective.Collected then
+                    if objective.Needed and objective.Collected then
+                        -- Calculate progress percentage
+                        local progress = math.floor((objective.Collected / objective.Needed) * 100)
                         -- Add monster targets
                         if objective.Type == "monster" and objective.spawnList then
                             for _, spawn in pairs(objective.spawnList) do
@@ -99,8 +105,17 @@ ns.QuestObjectives = {
                                         name = spawn.Name,
                                         isTarget = true,
                                         isTurnInNpc = false,
-                                        isVisible = false
+                                        isVisible = false,
+                                        progress = 0,
+                                        questName = quest.name or "Unknown Quest",
+                                        objectiveName = objective.Description or "",
+                                        objectiveType = "kill"
                                     }
+                                    -- Update progress
+                                    unit.progress = progress
+                                    unit.questName = quest.name or "Unknown Quest"
+                                    unit.objectiveName = objective.Description or ""
+                                    unit.objectiveType = "kill"
                                     self.unitCache[spawn.Name] = unit
                                     currentUnits[spawn.Name] = true
                                     table.insert(units, unit)
@@ -115,8 +130,17 @@ ns.QuestObjectives = {
                                         name = spawn.Name,
                                         isTarget = true,
                                         isTurnInNpc = false,
-                                        isVisible = false
+                                        isVisible = false,
+                                        progress = 0,
+                                        questName = quest.name or "Unknown Quest",
+                                        objectiveName = objective.Description or "",
+                                        objectiveType = "collect"
                                     }
+                                    -- Update progress
+                                    unit.progress = progress
+                                    unit.questName = quest.name or "Unknown Quest"
+                                    unit.objectiveName = objective.Description or ""
+                                    unit.objectiveType = "collect"
                                     self.unitCache[spawn.Name] = unit
                                     currentUnits[spawn.Name] = true
                                     table.insert(units, unit)
