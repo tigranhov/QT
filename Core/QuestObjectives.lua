@@ -180,13 +180,13 @@ ns.QuestObjectives = {
     end,
     
     --[[
-        Check if a unit is quest-related and get its status
+        Check if a unit is a quest target or turn-in NPC
         @param unitName string - Name of the unit to check
-        @return boolean, boolean, boolean - isTarget, isTurnInNpc, isVisible
+        @return boolean, boolean, boolean, number - isTarget, isTurnInNpc, isVisible, progress
     ]]
     IsQuestUnit = function(self, unitName)
         if not unitName or not self.isInitialized then 
-            return false, false, false
+            return false, false, false, 0
         end
         
         local units = self:GetQuestUnits()
@@ -194,11 +194,11 @@ ns.QuestObjectives = {
         
         for _, unit in ipairs(units) do
             if string.find(lowerUnitName, string.lower(unit.name)) then
-                return unit.isTarget, unit.isTurnInNpc, unit.isVisible
+                return unit.isTarget, unit.isTurnInNpc, unit.isVisible, unit.progress or 0
             end
         end
         
-        return false, false, false
+        return false, false, false, 0
     end
 }
 

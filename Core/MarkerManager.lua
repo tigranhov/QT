@@ -82,7 +82,7 @@ function MarkerManager:OnTargetChanged()
 
     -- Check if target is a quest unit first
     if ns.QuestObjectives then
-        local isTarget, isTurnInNpc = ns.QuestObjectives:IsQuestUnit(targetName)
+        local isTarget, isTurnInNpc, _, progress = ns.QuestObjectives:IsQuestUnit(targetName)
         
         -- Always update our tracking
         self.currentTarget = targetName
@@ -93,7 +93,7 @@ function MarkerManager:OnTargetChanged()
         -- Try to set appropriate marker
         if isTurnInNpc then
             self:SetUnitMarker("target", MARKER.TURN_IN_NPC)
-        elseif isTarget then
+        elseif isTarget and (not progress or progress < 100) then
             self:SetUnitMarker("target", MARKER.SELECTED_TARGET)
         end
     end
@@ -117,7 +117,7 @@ function MarkerManager:OnTooltipUnit(tooltip)
 
     -- Check if unit is a quest unit
     if ns.QuestObjectives then
-        local isTarget, isTurnInNpc = ns.QuestObjectives:IsQuestUnit(unitName)
+        local isTarget, isTurnInNpc, _, progress = ns.QuestObjectives:IsQuestUnit(unitName)
         
         -- Turn-in NPCs always get their specific marker
         if isTurnInNpc then
@@ -128,7 +128,7 @@ function MarkerManager:OnTooltipUnit(tooltip)
         end
         
         -- For regular targets
-        if isTarget then
+        if isTarget and (not progress or progress < 100) then
             -- If this is not our current target, mark it with hover marker
             if unitName ~= self.currentTarget then
                 if self:SetUnitMarker(unit, MARKER.HOVER_TARGET) then

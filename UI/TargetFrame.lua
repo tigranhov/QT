@@ -187,16 +187,13 @@ function TargetFrame:UpdateButtons(nearbyUnits)
         button:Hide()
     end
 
-    -- If no units, show "No Targets" message and adjust frame size
-    if #nearbyUnits == 0 then
+    -- If no units passed in, show "No Targets" message
+    if not nearbyUnits or #nearbyUnits == 0 then
         self.frame.noTargets:Show()
         local contentHeight = TITLE_HEIGHT + BUTTON_HEIGHT + (PADDING * 2)
         self.frame:SetSize(FRAME_MIN_WIDTH, contentHeight)
         return
     end
-
-    -- Hide "No Targets" indicator if we have units
-    self.frame.noTargets:Hide()
 
     -- Remove duplicates while preserving turn-in NPC priority
     local uniqueUnits = {}
@@ -221,6 +218,16 @@ function TargetFrame:UpdateButtons(nearbyUnits)
         end
     end
 
+    -- If no units after filtering, show "No Targets" message
+    if #uniqueUnits == 0 then
+        self.frame.noTargets:Show()
+        local contentHeight = TITLE_HEIGHT + BUTTON_HEIGHT + (PADDING * 2)
+        self.frame:SetSize(FRAME_MIN_WIDTH, contentHeight)
+        return
+    end
+
+    -- Hide "No Targets" indicator if we have units
+    self.frame.noTargets:Hide()
     -- Sort units by name within their groups (turn-in NPCs are already first)
     table.sort(uniqueUnits, function(a, b)
         if a.isTurnInNpc ~= b.isTurnInNpc then
@@ -248,6 +255,17 @@ function TargetFrame:UpdateButtons(nearbyUnits)
     -- Create/update buttons
     for i, unitData in ipairs(uniqueUnits) do
         local button = self.buttons[i]
+        -- Check if we need to recreate the button (type changed)
+        if button then
+            local needsProgressBar = not unitData.isTurnInNpc
+            local hasProgressBar = button.SetProgress ~= nil
+            if needsProgressBar ~= hasProgressBar then
+                button:Hide()
+                button = nil
+            end
+        end
+
+        -- Create new button if needed
         if not button then
             -- Create appropriate button type based on unit data
             if unitData.isTurnInNpc then
@@ -276,7 +294,9 @@ function TargetFrame:UpdateButtons(nearbyUnits)
             macroText = string.format("/targetexact %s\n/run SetRaidTarget(\"target\", 8)", unitData.name)
             button.text:SetTextColor(1, 1, 1) -- White for regular targets
             -- Update progress for non-turn-in NPCs
-            button:SetProgress(unitData.progress or 0)
+            if button.SetProgress then
+                button:SetProgress(unitData.progress or 0)
+            end
         end
 
         button:SetAttribute("macrotext1", macroText) -- Left click

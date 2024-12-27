@@ -16,4 +16,5 @@ Core/MarkerManager.lua
 Core/MacroManager.lua
 
 # UI files
+UI/Buttons.lua
 UI/TargetFrame.lua
