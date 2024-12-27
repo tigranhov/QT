@@ -190,8 +190,28 @@ function TargetFrame:UpdateButtons(nearbyUnits)
     -- Hide "No Targets" indicator if we have units
     self.frame.noTargets:Hide()
 
-    -- Sort units: turn-in NPCs first, then other targets
-    table.sort(nearbyUnits, function(a, b)
+    -- Remove duplicates while preserving turn-in NPC priority
+    local uniqueUnits = {}
+    local seenNames = {}
+
+    -- First pass: add turn-in NPCs
+    for _, unit in ipairs(nearbyUnits) do
+        if unit.isTurnInNpc and not seenNames[unit.name] then
+            seenNames[unit.name] = true
+            table.insert(uniqueUnits, unit)
+        end
+    end
+
+    -- Second pass: add regular targets if not already added
+    for _, unit in ipairs(nearbyUnits) do
+        if not unit.isTurnInNpc and not seenNames[unit.name] then
+            seenNames[unit.name] = true
+            table.insert(uniqueUnits, unit)
+        end
+    end
+
+    -- Sort units by name within their groups (turn-in NPCs are already first)
+    table.sort(uniqueUnits, function(a, b)
         if a.isTurnInNpc ~= b.isTurnInNpc then
             return a.isTurnInNpc
         end
@@ -201,7 +221,7 @@ function TargetFrame:UpdateButtons(nearbyUnits)
     -- Calculate required width based on text with smaller font
     local requiredWidth = FRAME_MIN_WIDTH
     local textMeasure = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    for _, unitData in ipairs(nearbyUnits) do
+    for _, unitData in ipairs(uniqueUnits) do
         textMeasure:SetText(unitData.name)
         requiredWidth = math.max(requiredWidth, textMeasure:GetStringWidth() + PADDING * 3)
     end
@@ -209,13 +229,13 @@ function TargetFrame:UpdateButtons(nearbyUnits)
     requiredWidth = math.min(requiredWidth, FRAME_MAX_WIDTH)
 
     -- Calculate required height with tighter spacing
-    local contentHeight = TITLE_HEIGHT + (#nearbyUnits * (BUTTON_HEIGHT + BUTTON_SPACING)) + PADDING
+    local contentHeight = TITLE_HEIGHT + (#uniqueUnits * (BUTTON_HEIGHT + BUTTON_SPACING)) + PADDING
 
     -- Update frame size
     self.frame:SetSize(requiredWidth, contentHeight)
 
     -- Create/update buttons
-    for i, unitData in ipairs(nearbyUnits) do
+    for i, unitData in ipairs(uniqueUnits) do
         local button = self.buttons[i]
         if not button then
             button = self:CreateButton(i)
