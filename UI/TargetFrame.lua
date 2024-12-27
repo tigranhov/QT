@@ -131,8 +131,8 @@ function TargetFrame:CreateFrame()
     -- Create title background frame (unnamed child frame)
     local titleFrame = CreateFrame("Frame", nil, frame, "BackdropTemplate")
     titleFrame:SetHeight(TITLE_HEIGHT)
-    titleFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, TITLE_HEIGHT/2)
-    titleFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, TITLE_HEIGHT/2)
+    titleFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, -PADDING)
+    titleFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, -PADDING)
     titleFrame:EnableMouse(true)  -- Enable mouse interaction
     titleFrame:RegisterForDrag("LeftButton")  -- Allow dragging
     titleFrame:SetScript("OnDragStart", function() frame:StartMoving() end)  -- Start parent frame movement
@@ -156,14 +156,13 @@ function TargetFrame:CreateFrame()
 
     -- Create list container (unnamed child frame)
     local listContainer = CreateFrame("Frame", nil, frame)
-    listContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, -(TITLE_HEIGHT/2))
+    listContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, -(TITLE_HEIGHT + PADDING * 2))
     listContainer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -PADDING, PADDING)
 
     -- Create the "No Targets" indicator
     local noTargets = CreateFrame("Frame", nil, listContainer)
-    noTargets:SetHeight(BUTTON_HEIGHT)
-    noTargets:SetPoint("TOPLEFT", listContainer, "TOPLEFT", PADDING, -PADDING)
-    noTargets:SetPoint("TOPRIGHT", listContainer, "TOPRIGHT", -PADDING, -PADDING)
+    noTargets:SetSize(FRAME_MIN_WIDTH - PADDING * 2, BUTTON_HEIGHT)
+    noTargets:SetPoint("CENTER", listContainer, "CENTER", 0, 0)
     local noTargetsText = noTargets:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     noTargetsText:SetPoint("CENTER")
     noTargetsText:SetText("No Targets")
@@ -189,8 +188,14 @@ function TargetFrame:UpdateButtons(nearbyUnits)
 
     -- If no units passed in, show "No Targets" message
     if not nearbyUnits or #nearbyUnits == 0 then
+        -- Hide all buttons first
+        for _, button in pairs(self.buttons) do
+            button:Hide()
+        end
+
+        -- Show "No Targets" message
         self.frame.noTargets:Show()
-        local contentHeight = TITLE_HEIGHT + BUTTON_HEIGHT + (PADDING * 2)
+        local contentHeight = TITLE_HEIGHT + BUTTON_HEIGHT
         self.frame:SetSize(FRAME_MIN_WIDTH, contentHeight)
         return
     end
@@ -220,8 +225,14 @@ function TargetFrame:UpdateButtons(nearbyUnits)
 
     -- If no units after filtering, show "No Targets" message
     if #uniqueUnits == 0 then
+        -- Hide all buttons first
+        for _, button in pairs(self.buttons) do
+            button:Hide()
+        end
+
+        -- Show "No Targets" message
         self.frame.noTargets:Show()
-        local contentHeight = TITLE_HEIGHT + BUTTON_HEIGHT + (PADDING * 2)
+        local contentHeight = TITLE_HEIGHT + BUTTON_HEIGHT + (PADDING * 4)
         self.frame:SetSize(FRAME_MIN_WIDTH, contentHeight)
         return
     end
@@ -241,20 +252,29 @@ function TargetFrame:UpdateButtons(nearbyUnits)
     local textMeasure = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     for _, unitData in ipairs(uniqueUnits) do
         textMeasure:SetText(unitData.name)
-        requiredWidth = math.max(requiredWidth, textMeasure:GetStringWidth() + PADDING * 3)
+        -- Add extra padding for progress bar buttons
+        local extraPadding = not unitData.isTurnInNpc and 30 or 0 -- Extra space for progress bar
+        requiredWidth = math.max(requiredWidth, textMeasure:GetStringWidth() + PADDING * 4 + extraPadding)
     end
     textMeasure:Hide()
     requiredWidth = math.min(requiredWidth, FRAME_MAX_WIDTH)
 
-    -- Calculate required height with tighter spacing
-    local contentHeight = TITLE_HEIGHT + (#uniqueUnits * (BUTTON_HEIGHT + BUTTON_SPACING)) + PADDING
+    -- Calculate required height with proper spacing
+    local totalButtonHeight = #uniqueUnits * BUTTON_HEIGHT + (#uniqueUnits - 1) * BUTTON_SPACING
+    local contentHeight = TITLE_HEIGHT + PADDING * 5 + totalButtonHeight -- Increased padding
+
+    -- Ensure minimum height
+    contentHeight = math.max(contentHeight, FRAME_MIN_HEIGHT)
 
     -- Update frame size
     self.frame:SetSize(requiredWidth, contentHeight)
 
+    -- Hide "No Targets" indicator if we have units
+    self.frame.noTargets:Hide()
     -- Create/update buttons
     for i, unitData in ipairs(uniqueUnits) do
         local button = self.buttons[i]
+        
         -- Check if we need to recreate the button (type changed)
         if button then
             local needsProgressBar = not unitData.isTurnInNpc
@@ -262,9 +282,10 @@ function TargetFrame:UpdateButtons(nearbyUnits)
             if needsProgressBar ~= hasProgressBar then
                 button:Hide()
                 button = nil
+                self.buttons[i] = nil
             end
         end
-
+        
         -- Create new button if needed
         if not button then
             -- Create appropriate button type based on unit data
@@ -276,10 +297,12 @@ function TargetFrame:UpdateButtons(nearbyUnits)
             self.buttons[i] = button
         end
 
-        local y = -(BUTTON_HEIGHT + BUTTON_SPACING) * (i - 1)
-        button:SetPoint("TOPLEFT", self.frame.listContainer, "TOPLEFT", PADDING, y)
-        button:SetPoint("TOPRIGHT", self.frame.listContainer, "TOPRIGHT", -PADDING, y)
+        -- Position the button with proper spacing
+        local topOffset = (i - 1) * (BUTTON_HEIGHT + BUTTON_SPACING)
+        button:SetPoint("TOPLEFT", self.frame.listContainer, "TOPLEFT", PADDING, -topOffset)
+        button:SetPoint("TOPRIGHT", self.frame.listContainer, "TOPRIGHT", -PADDING, -topOffset)
 
+        -- Update button data and appearance
         button.unitData = unitData
         button.text:SetText(unitData.name)
 
@@ -302,6 +325,13 @@ function TargetFrame:UpdateButtons(nearbyUnits)
         button:SetAttribute("macrotext1", macroText) -- Left click
         button:SetAttribute("macrotext2", macroText) -- Right click (backup targeting)
         button:Show()
+    end
+    -- Hide any extra buttons
+    for i = #uniqueUnits + 1, #self.buttons do
+        if self.buttons[i] then
+            self.buttons[i]:Hide()
+            self.buttons[i] = nil
+        end
     end
 end
 
