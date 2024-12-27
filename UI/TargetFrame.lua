@@ -1,124 +1,248 @@
--- UI/TargetFrame.lua - Targeting frame functionality
+--[[
+    TargetFrame Module
+    A dynamic list of targetable quest units that updates based on player proximity and quest status.
+
+    Target List Behavior:
+    1. Visibility Rules:
+        - Only shows units that are currently visible to the player
+        - Filters out completed quest targets unless explicitly enabled
+        - Hides duplicate entries of the same unit name
+        - Shows "No Targets" message when no valid targets are found
+
+    2. Target Prioritization:
+        - Quest turn-in NPCs always appear at the top of the list
+        - If the same NPC is both a turn-in and regular target, shows as turn-in
+        - Regular quest targets are sorted alphabetically below turn-in NPCs
+        - Completed targets (100% progress) are hidden by default
+
+    3. Progress Tracking:
+        - Regular targets show current progress as a percentage bar
+        - Turn-in NPCs don't show progress bars
+        - Progress updates dynamically as quest objectives are completed
+        - 100% complete targets can be shown/hidden via "/qtf completed"
+
+    4. Target Interaction:
+        - Clicking any target attempts to target that unit
+        - Turn-in NPCs are automatically marked with Square (6)
+        - Regular targets are automatically marked with Skull (8)
+        - Both left and right clicks perform the same targeting action
+
+    5. List Updates:
+        - List refreshes every 0.1 seconds
+        - Frame grows/shrinks to fit content
+        - Minimum 1 entry height for "No Targets"
+        - Maximum width of 200px with text truncation
+        - Preserves scroll position during updates
+
+    6. Visual Indicators:
+        - Turn-in NPCs shown in green text
+        - Regular targets shown in white text
+        - Progress bars shown in default UI colors
+        - "No Targets" shown in gray when list is empty
+]]
 local addonName, ns = ...
 
--- Constants for frame sizes and layout
-local FRAME_MIN_WIDTH = 120
-local FRAME_MIN_HEIGHT = 50
-local FRAME_MAX_WIDTH = 200
-local TITLE_HEIGHT = 16  -- Reduced from 20
-local BUTTON_HEIGHT = 16
-local BUTTON_SPACING = 1
-local PADDING = 4
+-- Constants
+local Constants = {
+    FRAME = {
+        MIN_WIDTH = 120,
+        MIN_HEIGHT = 50,
+        MAX_WIDTH = 200,
+        TITLE_HEIGHT = 16,
+        BUTTON_HEIGHT = 16,
+        BUTTON_SPACING = 1,
+        PADDING = 4
+    },
+    COLORS = {
+        TURNIN_NPC = { 0, 1, 0 },       -- Green
+        REGULAR_TARGET = { 1, 1, 1 },   -- White
+        NO_TARGETS = { 0.5, 0.5, 0.5 }, -- Gray
+    },
+    MARKERS = {
+        TURNIN_NPC = 6,    -- Square
+        REGULAR_TARGET = 8 -- Skull
+    },
+    UPDATE_INTERVAL = 0.1
+}
 
--- Create the TargetFrame module
+-- Settings Manager Component
+local SettingsManager = {
+    Initialize = function()
+        if not QuestTargetSettings then
+            QuestTargetSettings = {}
+        end
+        if not QuestTargetSettings.framePosition then
+            QuestTargetSettings.framePosition = {
+                point = "CENTER",
+                relativePoint = "CENTER",
+                xOfs = 0,
+                yOfs = 0
+            }
+        end
+        if QuestTargetSettings.frameShown == nil then
+            QuestTargetSettings.frameShown = true
+        end
+        if QuestTargetSettings.showCompleted == nil then
+            QuestTargetSettings.showCompleted = false
+        end
+    end,
+    SavePosition = function(frame)
+        local point, _, relativePoint, xOfs, yOfs = frame:GetPoint()
+        if point then
+            QuestTargetSettings.framePosition = {
+                point = point,
+                relativePoint = relativePoint,
+                xOfs = xOfs,
+                yOfs = yOfs
+            }
+        end
+    end,
+    RestorePosition = function(frame)
+        if not QuestTargetSettings.framePosition then return end
+        local pos = QuestTargetSettings.framePosition
+        frame:ClearAllPoints()
+        frame:SetPoint(pos.point, UIParent, pos.relativePoint, pos.xOfs, pos.yOfs)
+    end
+}
+
+-- Target List Manager Component
+local TargetListManager = {
+    FilterAndSortUnits = function(units)
+        if not units or #units == 0 then return {} end
+
+        -- Remove duplicates while preserving turn-in NPC priority
+        local uniqueUnits = {}
+        local seenNames = {}
+
+        -- First pass: add turn-in NPCs
+        for _, unit in ipairs(units) do
+            if unit.isTurnInNpc and not seenNames[unit.name] then
+                seenNames[unit.name] = true
+                table.insert(uniqueUnits, unit)
+            end
+        end
+
+        -- Second pass: add regular targets
+        for _, unit in ipairs(units) do
+            if not unit.isTurnInNpc and not seenNames[unit.name] then
+                if not unit.progress or unit.progress < 100 or QuestTargetSettings.showCompleted then
+                    seenNames[unit.name] = true
+                    table.insert(uniqueUnits, unit)
+                end
+            end
+        end
+
+        -- Sort units
+        table.sort(uniqueUnits, function(a, b)
+            if a.isTurnInNpc ~= b.isTurnInNpc then
+                return a.isTurnInNpc
+            end
+            return a.name < b.name
+        end)
+
+        return uniqueUnits
+    end,
+    CreateTargetMacro = function(unitData)
+        local markerID = unitData.isTurnInNpc and Constants.MARKERS.TURNIN_NPC or Constants.MARKERS.REGULAR_TARGET
+        return string.format("/targetexact %s\n/run SetRaidTarget(\"target\", %d)", unitData.name, markerID)
+    end
+}
+
+-- UI Component Factory
+local UIFactory = {
+    CreateTitleFrame = function(parent)
+        local titleFrame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+        titleFrame:SetHeight(Constants.FRAME.TITLE_HEIGHT)
+        titleFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", Constants.FRAME.PADDING, -Constants.FRAME.PADDING)
+        titleFrame:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -Constants.FRAME.PADDING, -Constants.FRAME.PADDING)
+        titleFrame:EnableMouse(true)
+        titleFrame:RegisterForDrag("LeftButton")
+
+        titleFrame:SetBackdrop({
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true,
+            tileSize = 8,
+            edgeSize = 8,
+            insets = { left = 2, right = 2, top = 2, bottom = 2 }
+        })
+
+        -- Add movement handlers to title frame that control parent frame
+        titleFrame:SetScript("OnDragStart", function()
+            parent:StartMoving()
+        end)
+        titleFrame:SetScript("OnDragStop", function()
+            parent:StopMovingOrSizing()
+            SettingsManager.SavePosition(parent)
+        end)
+
+        local title = titleFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        title:SetPoint("CENTER", titleFrame, "CENTER", 0, 0)
+        title:SetText("Quest Targets")
+        title:SetTextColor(1, 0.82, 0)
+
+        return titleFrame
+    end,
+    CreateListContainer = function(parent)
+        local container = CreateFrame("Frame", nil, parent)
+        container:SetPoint("TOPLEFT", parent, "TOPLEFT", Constants.FRAME.PADDING,
+            -(Constants.FRAME.TITLE_HEIGHT + Constants.FRAME.PADDING * 2))
+        container:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -Constants.FRAME.PADDING, Constants.FRAME.PADDING)
+        return container
+    end,
+    CreateNoTargetsIndicator = function(parent)
+        local frame = CreateFrame("Frame", nil, parent)
+        frame:SetSize(Constants.FRAME.MIN_WIDTH - Constants.FRAME.PADDING * 2, Constants.FRAME.BUTTON_HEIGHT)
+        frame:SetPoint("CENTER", parent, "CENTER", 0, 0)
+
+        local text = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        text:SetPoint("CENTER")
+        text:SetText("No Targets")
+        text:SetTextColor(unpack(Constants.COLORS.NO_TARGETS))
+
+        frame:Hide()
+        return frame
+    end
+}
+
+-- Main TargetFrame Module
 local TargetFrame = {
     frame = nil,
     buttons = {},
     isInitialized = false
 }
 
--- Add it to the namespace
-ns.TargetFrame = TargetFrame
-
--- Create event frame at file level
-local eventFrame = CreateFrame("Frame")
-
 function TargetFrame:Initialize()
     if self.isInitialized then return end
-    
-    -- Register for events
-    eventFrame:RegisterEvent("ADDON_LOADED")
-    eventFrame:SetScript("OnEvent", function(_, event, arg1)
-        if event == "ADDON_LOADED" and arg1 == addonName then
-            -- Initialize saved variables if they don't exist
-            if not QuestTargetSettings then
-                QuestTargetSettings = {}
-            end
-            if not QuestTargetSettings.framePosition then
-                QuestTargetSettings.framePosition = {
-                    point = "CENTER",
-                    relativePoint = "CENTER",
-                    xOfs = 0,
-                    yOfs = 0
-                }
-            end
-            -- Initialize visibility state to true by default
-            if QuestTargetSettings.frameShown == nil then
-                QuestTargetSettings.frameShown = true
-            end
-            -- Initialize showCompleted setting to false by default
-            if QuestTargetSettings.showCompleted == nil then
-                QuestTargetSettings.showCompleted = false
-            end
 
-            -- Register slash command
-            SLASH_TARGETFRAME1 = "/qtf"
-            SlashCmdList["TARGETFRAME"] = function(msg)
-                msg = msg:lower()
-                if msg == "enable" then
-                    self:Show()
-                elseif msg == "disable" then
-                    self:Hide()
-                elseif msg == "completed" then
-                    QuestTargetSettings.showCompleted = not QuestTargetSettings.showCompleted
-                    print(string.format("[QuestTarget] Show completed targets: %s",
-                        QuestTargetSettings.showCompleted and "Enabled" or "Disabled"))
-                else  -- toggle or empty command
-                    self:Toggle()
-                end
-            end
+    -- Initialize settings
+    SettingsManager.Initialize()
 
-            -- Create initial frame
-            self:CreateFrame()
-            self:RestorePosition()
+    -- Create main frame
+    self:CreateFrame()
 
-            -- Always show frame on initialization
-            self:Show()
+    -- Register slash commands
+    self:RegisterSlashCommands()
 
-            eventFrame:UnregisterEvent("ADDON_LOADED")
-            self.isInitialized = true
-        end
-    end)
+    -- Restore position and show
+    SettingsManager.RestorePosition(self.frame)
+    if QuestTargetSettings.frameShown then
+        self:Show()
+    end
+
+    self.isInitialized = true
 end
-
--- Call Initialize immediately
-TargetFrame:Initialize()
 
 function TargetFrame:CreateFrame()
     if self.frame then return self.frame end
 
-    -- Create main frame with unique name
+    -- Create main frame
     local frame = CreateFrame("Frame", addonName.."TargetFrame", UIParent, "BackdropTemplate")
     frame:SetPoint("CENTER")
-    frame:SetSize(FRAME_MIN_WIDTH, FRAME_MIN_HEIGHT)
-
+    frame:SetSize(Constants.FRAME.MIN_WIDTH, Constants.FRAME.MIN_HEIGHT)
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        TargetFrame:SavePosition()
-    end)
-
-    -- Add OnUpdate script with throttling
-    local lastUpdate = 0
-    frame:SetScript("OnUpdate", function(self, elapsed)
-        lastUpdate = lastUpdate + elapsed
-        if lastUpdate < 0.1 then return end  -- Only update every 0.1 seconds
-        lastUpdate = 0
-
-        if ns.QuestObjectives then
-            local visibleUnits = ns.QuestObjectives:GetVisibleUnits()
-            if visibleUnits and #visibleUnits > 0 then
-                TargetFrame:UpdateButtons(visibleUnits)
-            else
-                -- Show "No Targets" when there are no visible units
-                TargetFrame:UpdateButtons({})
-            end
-        end
-    end)
-
     frame:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
         edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -128,234 +252,157 @@ function TargetFrame:CreateFrame()
         insets = { left = 4, right = 4, top = 4, bottom = 4 }
     })
 
-    -- Create title background frame (unnamed child frame)
-    local titleFrame = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-    titleFrame:SetHeight(TITLE_HEIGHT)
-    titleFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, -PADDING)
-    titleFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, -PADDING)
-    titleFrame:EnableMouse(true)  -- Enable mouse interaction
-    titleFrame:RegisterForDrag("LeftButton")  -- Allow dragging
-    titleFrame:SetScript("OnDragStart", function() frame:StartMoving() end)  -- Start parent frame movement
-    titleFrame:SetScript("OnDragStop", function() 
-        frame:StopMovingOrSizing()
-        TargetFrame:SavePosition()
+    -- Add movement handlers
+    frame:SetScript("OnDragStart", frame.StartMoving)
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        SettingsManager.SavePosition(self)
     end)
-    titleFrame:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true,
-        tileSize = 8,
-        edgeSize = 8,
-        insets = { left = 2, right = 2, top = 2, bottom = 2 }
-    })
 
-    local title = titleFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    title:SetPoint("CENTER", titleFrame, "CENTER", 0, 0)
-    title:SetText("Quest Targets")
-    title:SetTextColor(1, 0.82, 0) -- Gold color
+    -- Create child frames
+    local titleFrame = UIFactory.CreateTitleFrame(frame)
+    local listContainer = UIFactory.CreateListContainer(frame)
+    local noTargets = UIFactory.CreateNoTargetsIndicator(listContainer)
 
-    -- Create list container (unnamed child frame)
-    local listContainer = CreateFrame("Frame", nil, frame)
-    listContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, -(TITLE_HEIGHT + PADDING * 2))
-    listContainer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -PADDING, PADDING)
+    -- Make the list container click-through for frame dragging
+    listContainer:EnableMouse(false)
 
-    -- Create the "No Targets" indicator
-    local noTargets = CreateFrame("Frame", nil, listContainer)
-    noTargets:SetSize(FRAME_MIN_WIDTH - PADDING * 2, BUTTON_HEIGHT)
-    noTargets:SetPoint("CENTER", listContainer, "CENTER", 0, 0)
-    local noTargetsText = noTargets:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    noTargetsText:SetPoint("CENTER")
-    noTargetsText:SetText("No Targets")
-    noTargetsText:SetTextColor(0.5, 0.5, 0.5) -- Gray color
-    noTargets:Hide()
+    -- Setup update handler
+    local lastUpdate = 0
+    frame:SetScript("OnUpdate", function(self, elapsed)
+        lastUpdate = lastUpdate + elapsed
+        if lastUpdate < Constants.UPDATE_INTERVAL then return end
+        lastUpdate = 0
 
+        if ns.QuestObjectives then
+            local visibleUnits = ns.QuestObjectives:GetVisibleUnits()
+            if visibleUnits and #visibleUnits > 0 then
+                TargetFrame:UpdateButtons(visibleUnits)
+            else
+                TargetFrame:UpdateButtons({})
+            end
+        end
+    end)
+
+    -- Store references
     frame.listContainer = listContainer
     frame.noTargets = noTargets
     self.frame = frame
-    self.buttons = {}
 
-    frame:Hide()
     return frame
 end
 
-function TargetFrame:UpdateButtons(nearbyUnits)
-    if not self.frame or not self.frame.listContainer then return end
-
+function TargetFrame:UpdateButtons(units)
+    local filteredUnits = TargetListManager.FilterAndSortUnits(units)
     -- Hide all existing buttons
     for _, button in pairs(self.buttons) do
         button:Hide()
     end
 
-    -- If no units passed in, show "No Targets" message
-    if not nearbyUnits or #nearbyUnits == 0 then
-        -- Hide all buttons first
-        for _, button in pairs(self.buttons) do
-            button:Hide()
-        end
-
-        -- Show "No Targets" message
+    -- Show no targets if needed
+    if #filteredUnits == 0 then
         self.frame.noTargets:Show()
-        local contentHeight = TITLE_HEIGHT + BUTTON_HEIGHT
-        self.frame:SetSize(FRAME_MIN_WIDTH, contentHeight)
+        local contentHeight = Constants.FRAME.TITLE_HEIGHT + Constants.FRAME.BUTTON_HEIGHT +
+            (Constants.FRAME.PADDING * 4)
+        self.frame:SetSize(Constants.FRAME.MIN_WIDTH, contentHeight)
         return
     end
 
-    -- Remove duplicates while preserving turn-in NPC priority
-    local uniqueUnits = {}
-    local seenNames = {}
-
-    -- First pass: add turn-in NPCs
-    for _, unit in ipairs(nearbyUnits) do
-        if unit.isTurnInNpc and not seenNames[unit.name] then
-            seenNames[unit.name] = true
-            table.insert(uniqueUnits, unit)
-        end
-    end
-
-    -- Second pass: add regular targets if not already added and not completed (unless showCompleted is true)
-    for _, unit in ipairs(nearbyUnits) do
-        if not unit.isTurnInNpc and not seenNames[unit.name] then
-            -- Skip units with 100% progress unless showCompleted is true
-            if not unit.progress or unit.progress < 100 or QuestTargetSettings.showCompleted then
-                seenNames[unit.name] = true
-                table.insert(uniqueUnits, unit)
-            end
-        end
-    end
-
-    -- If no units after filtering, show "No Targets" message
-    if #uniqueUnits == 0 then
-        -- Hide all buttons first
-        for _, button in pairs(self.buttons) do
-            button:Hide()
-        end
-
-        -- Show "No Targets" message
-        self.frame.noTargets:Show()
-        local contentHeight = TITLE_HEIGHT + BUTTON_HEIGHT + (PADDING * 4)
-        self.frame:SetSize(FRAME_MIN_WIDTH, contentHeight)
-        return
-    end
-
-    -- Hide "No Targets" indicator if we have units
+    -- Hide no targets indicator
     self.frame.noTargets:Hide()
-    -- Sort units by name within their groups (turn-in NPCs are already first)
-    table.sort(uniqueUnits, function(a, b)
-        if a.isTurnInNpc ~= b.isTurnInNpc then
-            return a.isTurnInNpc
-        end
-        return a.name < b.name
-    end)
-
-    -- Calculate required width based on text with smaller font
-    local requiredWidth = FRAME_MIN_WIDTH
+    
+    -- Calculate required width
+    local requiredWidth = Constants.FRAME.MIN_WIDTH
     local textMeasure = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    for _, unitData in ipairs(uniqueUnits) do
+    for _, unitData in ipairs(filteredUnits) do
         textMeasure:SetText(unitData.name)
-        -- Add extra padding for progress bar buttons
-        local extraPadding = not unitData.isTurnInNpc and 30 or 0 -- Extra space for progress bar
-        requiredWidth = math.max(requiredWidth, textMeasure:GetStringWidth() + PADDING * 4 + extraPadding)
+        local extraPadding = not unitData.isTurnInNpc and 30 or 0
+        requiredWidth = math.max(requiredWidth, textMeasure:GetStringWidth() + Constants.FRAME.PADDING * 4 + extraPadding)
     end
     textMeasure:Hide()
-    requiredWidth = math.min(requiredWidth, FRAME_MAX_WIDTH)
-
-    -- Calculate required height with proper spacing
-    local totalButtonHeight = #uniqueUnits * BUTTON_HEIGHT + (#uniqueUnits - 1) * BUTTON_SPACING
-    local contentHeight = TITLE_HEIGHT + PADDING * 5 + totalButtonHeight -- Increased padding
-
-    -- Ensure minimum height
-    contentHeight = math.max(contentHeight, FRAME_MIN_HEIGHT)
-
+    
+    requiredWidth = math.min(requiredWidth, Constants.FRAME.MAX_WIDTH)
     -- Update frame size
+    local totalButtonHeight = #filteredUnits * Constants.FRAME.BUTTON_HEIGHT +
+        (#filteredUnits - 1) * Constants.FRAME.BUTTON_SPACING
+    local contentHeight = Constants.FRAME.TITLE_HEIGHT + Constants.FRAME.PADDING * 5 + totalButtonHeight
+    contentHeight = math.max(contentHeight, Constants.FRAME.MIN_HEIGHT)
     self.frame:SetSize(requiredWidth, contentHeight)
-
-    -- Hide "No Targets" indicator if we have units
-    self.frame.noTargets:Hide()
-    -- Create/update buttons
-    for i, unitData in ipairs(uniqueUnits) do
+    
+    -- Update buttons
+    for i, unitData in ipairs(filteredUnits) do
         local button = self.buttons[i]
+        local shouldCreateNewButton = false
         
-        -- Check if we need to recreate the button (type changed)
-        if button then
-            local needsProgressBar = not unitData.isTurnInNpc
+        -- Check if we need to create a new button or if existing button is wrong type
+        if not button then
+            shouldCreateNewButton = true
+        else
+            -- Check if the button is of the wrong type
             local hasProgressBar = button.SetProgress ~= nil
-            if needsProgressBar ~= hasProgressBar then
-                button:Hide()
-                button = nil
-                self.buttons[i] = nil
+            if unitData.isTurnInNpc and hasProgressBar then
+                shouldCreateNewButton = true
+            elseif not unitData.isTurnInNpc and not hasProgressBar then
+                shouldCreateNewButton = true
             end
         end
         
         -- Create new button if needed
-        if not button then
-            -- Create appropriate button type based on unit data
-            if unitData.isTurnInNpc then
-                button = ns.ButtonTypes.CreateTextButton(self.frame.listContainer)
-            else
-                button = ns.ButtonTypes.CreateProgressButton(self.frame.listContainer)
+        if shouldCreateNewButton then
+            if button then
+                button:Hide()
+                button:SetParent(nil)
             end
+            button = unitData.isTurnInNpc and
+                ns.ButtonTypes.CreateTextButton(self.frame.listContainer) or
+                ns.ButtonTypes.CreateProgressButton(self.frame.listContainer)
             self.buttons[i] = button
+            -- Enable mouse interaction only for the button area
+            button:SetMouseClickEnabled(true)
+            button:SetMouseMotionEnabled(true)
         end
 
-        -- Position the button with proper spacing
-        local topOffset = (i - 1) * (BUTTON_HEIGHT + BUTTON_SPACING)
-        button:SetPoint("TOPLEFT", self.frame.listContainer, "TOPLEFT", PADDING, -topOffset)
-        button:SetPoint("TOPRIGHT", self.frame.listContainer, "TOPRIGHT", -PADDING, -topOffset)
+        local topOffset = (i - 1) * (Constants.FRAME.BUTTON_HEIGHT + Constants.FRAME.BUTTON_SPACING)
+        button:SetPoint("TOPLEFT", self.frame.listContainer, "TOPLEFT", Constants.FRAME.PADDING, -topOffset)
+        button:SetPoint("TOPRIGHT", self.frame.listContainer, "TOPRIGHT", -Constants.FRAME.PADDING, -topOffset)
 
-        -- Update button data and appearance
         button.unitData = unitData
         button.text:SetText(unitData.name)
-
-        -- Set up targeting macro for both left and right click
-        local macroText
+        
+        local macroText = TargetListManager.CreateTargetMacro(unitData)
+        button:SetAttribute("macrotext1", macroText)
+        button:SetAttribute("macrotext2", macroText)
         if unitData.isTurnInNpc then
-            -- For turn-in NPCs, use Square (6)
-            macroText = string.format("/targetexact %s\n/run SetRaidTarget(\"target\", 6)", unitData.name)
-            button.text:SetTextColor(0, 1, 0) -- Green for turn-in NPCs
+            button.text:SetTextColor(unpack(Constants.COLORS.TURNIN_NPC))
         else
-            -- For regular targets, use Skull (8)
-            macroText = string.format("/targetexact %s\n/run SetRaidTarget(\"target\", 8)", unitData.name)
-            button.text:SetTextColor(1, 1, 1) -- White for regular targets
-            -- Update progress for non-turn-in NPCs
+            button.text:SetTextColor(unpack(Constants.COLORS.REGULAR_TARGET))
             if button.SetProgress then
                 button:SetProgress(unitData.progress or 0)
             end
         end
-
-        button:SetAttribute("macrotext1", macroText) -- Left click
-        button:SetAttribute("macrotext2", macroText) -- Right click (backup targeting)
+        
         button:Show()
     end
-    -- Hide any extra buttons
-    for i = #uniqueUnits + 1, #self.buttons do
-        if self.buttons[i] then
-            self.buttons[i]:Hide()
-            self.buttons[i] = nil
+end
+
+function TargetFrame:RegisterSlashCommands()
+    SLASH_TARGETFRAME1 = "/qtf"
+    SlashCmdList["TARGETFRAME"] = function(msg)
+        msg = msg:lower()
+        if msg == "enable" then
+            self:Show()
+        elseif msg == "disable" then
+            self:Hide()
+        elseif msg == "completed" then
+            QuestTargetSettings.showCompleted = not QuestTargetSettings.showCompleted
+            print(string.format("[QuestTarget] Show completed targets: %s",
+                QuestTargetSettings.showCompleted and "Enabled" or "Disabled"))
+        else
+            self:Toggle()
         end
     end
 end
 
-function TargetFrame:SavePosition()
-    if not self.frame then return end
-
-    local point, _, relativePoint, xOfs, yOfs = self.frame:GetPoint()
-    if point then
-        QuestTargetSettings.framePosition = {
-            point = point,
-            relativePoint = relativePoint,
-            xOfs = xOfs,
-            yOfs = yOfs
-        }
-    end
-end
-
-function TargetFrame:RestorePosition()
-    if not self.frame or not QuestTargetSettings.framePosition then return end
-
-    local pos = QuestTargetSettings.framePosition
-    self.frame:ClearAllPoints()
-    self.frame:SetPoint(pos.point, UIParent, pos.relativePoint, pos.xOfs, pos.yOfs)
-end
 function TargetFrame:Show()
     if not self.frame then return end
     self.frame:Show()
@@ -371,7 +418,6 @@ end
 
 function TargetFrame:Toggle()
     if not self.frame then return end
-
     if self.frame:IsShown() then
         self:Hide()
     else
@@ -379,3 +425,8 @@ function TargetFrame:Toggle()
     end
 end
 
+-- Export the module
+ns.TargetFrame = TargetFrame
+
+-- Initialize immediately
+TargetFrame:Initialize()
