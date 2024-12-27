@@ -46,6 +46,10 @@ function TargetFrame:Initialize()
             if QuestTargetSettings.frameShown == nil then
                 QuestTargetSettings.frameShown = true
             end
+            -- Initialize showCompleted setting to false by default
+            if QuestTargetSettings.showCompleted == nil then
+                QuestTargetSettings.showCompleted = false
+            end
 
             -- Register slash command
             SLASH_TARGETFRAME1 = "/qtf"
@@ -55,6 +59,10 @@ function TargetFrame:Initialize()
                     self:Show()
                 elseif msg == "disable" then
                     self:Hide()
+                elseif msg == "completed" then
+                    QuestTargetSettings.showCompleted = not QuestTargetSettings.showCompleted
+                    print(string.format("[QuestTarget] Show completed targets: %s",
+                        QuestTargetSettings.showCompleted and "Enabled" or "Disabled"))
                 else  -- toggle or empty command
                     self:Toggle()
                 end
@@ -202,11 +210,14 @@ function TargetFrame:UpdateButtons(nearbyUnits)
         end
     end
 
-    -- Second pass: add regular targets if not already added
+    -- Second pass: add regular targets if not already added and not completed (unless showCompleted is true)
     for _, unit in ipairs(nearbyUnits) do
         if not unit.isTurnInNpc and not seenNames[unit.name] then
-            seenNames[unit.name] = true
-            table.insert(uniqueUnits, unit)
+            -- Skip units with 100% progress unless showCompleted is true
+            if not unit.progress or unit.progress < 100 or QuestTargetSettings.showCompleted then
+                seenNames[unit.name] = true
+                table.insert(uniqueUnits, unit)
+            end
         end
     end
 
@@ -238,13 +249,18 @@ function TargetFrame:UpdateButtons(nearbyUnits)
     for i, unitData in ipairs(uniqueUnits) do
         local button = self.buttons[i]
         if not button then
-            button = self:CreateButton(i)
+            -- Create appropriate button type based on unit data
+            if unitData.isTurnInNpc then
+                button = ns.ButtonTypes.CreateTextButton(self.frame.listContainer)
+            else
+                button = ns.ButtonTypes.CreateProgressButton(self.frame.listContainer)
+            end
+            self.buttons[i] = button
         end
 
         local y = -(BUTTON_HEIGHT + BUTTON_SPACING) * (i - 1)
-        button:SetPoint("TOPLEFT", self.frame.listContainer, "TOPLEFT", 0, y)
-        button:SetPoint("TOPRIGHT", self.frame.listContainer, "TOPRIGHT", 0, y)
-        button:SetHeight(BUTTON_HEIGHT)
+        button:SetPoint("TOPLEFT", self.frame.listContainer, "TOPLEFT", PADDING, y)
+        button:SetPoint("TOPRIGHT", self.frame.listContainer, "TOPRIGHT", -PADDING, y)
 
         button.unitData = unitData
         button.text:SetText(unitData.name)
@@ -255,78 +271,18 @@ function TargetFrame:UpdateButtons(nearbyUnits)
             -- For turn-in NPCs, use Square (6)
             macroText = string.format("/targetexact %s\n/run SetRaidTarget(\"target\", 6)", unitData.name)
             button.text:SetTextColor(0, 1, 0) -- Green for turn-in NPCs
-            button.isTurnInNPC = true
         else
             -- For regular targets, use Skull (8)
             macroText = string.format("/targetexact %s\n/run SetRaidTarget(\"target\", 8)", unitData.name)
             button.text:SetTextColor(1, 1, 1) -- White for regular targets
-            button.isTurnInNPC = false
+            -- Update progress for non-turn-in NPCs
+            button:SetProgress(unitData.progress or 0)
         end
 
         button:SetAttribute("macrotext1", macroText) -- Left click
         button:SetAttribute("macrotext2", macroText) -- Right click (backup targeting)
         button:Show()
     end
-end
-
-function TargetFrame:CreateButton(index)
-    -- Create secure button for targeting
-    local button = CreateFrame("Button", addonName.."TargetButton"..index, self.frame.listContainer, "SecureActionButtonTemplate")
-    button:SetHeight(BUTTON_HEIGHT)
-    button:SetPoint("LEFT", 0, 0)
-    button:SetPoint("RIGHT", 0, 0)
-
-    -- Set up secure targeting
-    button:SetAttribute("type1", "macro")
-    button:SetAttribute("type2", "macro")
-    button:RegisterForClicks("AnyDown")
-
-    -- Create text label with smaller font
-    local text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    text:SetPoint("LEFT", 4, 0)
-    text:SetPoint("RIGHT", -4, 0)
-    text:SetJustifyH("LEFT")
-    text:SetWordWrap(false)  -- Prevent text wrapping
-    text:SetHeight(BUTTON_HEIGHT)  -- Force single line height
-    button.text = text
-
-    -- Create hover highlight
-    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetAllPoints()
-    highlight:SetColorTexture(1, 1, 1, 0.2)
-
-    -- Create background for better visibility
-    local bg = button:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(0, 0, 0, 0.2)
-
-    button:SetScript("OnEnter", function(self)
-        if not self.unitData then return end
-        self.text:SetTextColor(1, 1, 0)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(self.unitData.name, 1, 1, 1)
-        if self.unitData.isTurnInNpc then
-            GameTooltip:AddLine("Quest Turn-in NPC", 0, 1, 0)
-        else
-            GameTooltip:AddLine("Quest Target", 1, 0.82, 0)
-        end
-        if self.unitData.lastSeen then
-            GameTooltip:AddLine(string.format("Last seen: %.1f seconds ago", GetTime() - self.unitData.lastSeen))
-        end
-        GameTooltip:Show()
-    end)
-
-    button:SetScript("OnLeave", function(self)
-        if self.isTurnInNPC then
-            self.text:SetTextColor(0, 1, 0)
-        else
-            self.text:SetTextColor(1, 1, 1)
-        end
-        GameTooltip:Hide()
-    end)
-
-    self.buttons[index] = button
-    return button
 end
 
 function TargetFrame:SavePosition()
