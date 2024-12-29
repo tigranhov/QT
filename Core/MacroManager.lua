@@ -15,7 +15,8 @@ local MacroManager = {
     isInitialized = false,
     frame = nil,
     UPDATE_FREQUENCY = 1, -- How often to update the macro (in seconds)
-    enabled = true       -- Track enabled state
+    enabled = true,       -- Track enabled state
+    lastTargetName = nil  -- Track last selected target
 }
 
 function MacroManager:Initialize()
@@ -26,6 +27,16 @@ function MacroManager:Initialize()
     -- Create frame for OnUpdate without size/position (making it virtual)
     self.frame = CreateFrame("Frame", nil, UIParent)
     
+    -- Register for target change events
+    self.frame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    self.frame:SetScript("OnEvent", function(_, event)
+        if event == "PLAYER_TARGET_CHANGED" and UnitExists("target") then
+            local name = UnitName("target")
+            if name and ns.QuestObjectives and ns.QuestObjectives:IsQuestUnit(name) then
+                self.lastTargetName = name
+            end
+        end
+    end)
     -- Initialize update timer
     self.frame.TimeSinceLastUpdate = 0
     
@@ -130,17 +141,35 @@ function MacroManager:UpdateMacro()
     local turnInNpcs = {}
     
     -- Stage 3: Primary target collection
-    -- First pass: prioritize regular quest targets
+    -- First pass: prioritize last selected target, then regular quest targets
     -- We collect turn-in NPCs separately but don't use them yet
+    -- Add last selected target first if it's still valid
+    if self.lastTargetName then
+        for _, unit in ipairs(visibleUnits) do
+            if unit.name == self.lastTargetName and unit.isTarget and not unit.isTurnInNpc then
+                if not unit.progress or unit.progress < 100 then
+                    local newLine = string.format("\n/targetexact %s", unit.name)
+                    if (macroText:len() + newLine:len()) <= maxLength then
+                        macroText = macroText .. newLine
+                        targetCount = targetCount + 1
+                    end
+                    break
+                end
+            end
+        end
+    end
+
+    -- Then add other regular targets
     for _, unit in ipairs(visibleUnits) do
-        if unit.isTarget and not unit.isTurnInNpc then
-            local newLine = string.format("\n/targetexact %s", unit.name)
-            -- Check macro length limit before adding
-            if (macroText:len() + newLine:len()) <= maxLength then
-                macroText = macroText .. newLine
-                targetCount = targetCount + 1
-            else
-                break  -- Stop if macro would exceed length limit
+        if unit.isTarget and not unit.isTurnInNpc and unit.name ~= self.lastTargetName then
+            if not unit.progress or unit.progress < 100 then
+                local newLine = string.format("\n/targetexact %s", unit.name)
+                if (macroText:len() + newLine:len()) <= maxLength then
+                    macroText = macroText .. newLine
+                    targetCount = targetCount + 1
+                else
+                    break
+                end
             end
         elseif unit.isTurnInNpc then
             table.insert(turnInNpcs, unit)

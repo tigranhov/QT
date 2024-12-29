@@ -139,7 +139,7 @@ ns.RangeDetector = {
         -- Update last scan time
         self.state.lastScan = now
         
-        -- Clean up expired detections
+        -- First, clear any expired detections
         for name, data in pairs(self.state.detectedUnits) do
             if now - data.lastSeen > MATCH_TIMEOUT then
                 self.state.detectedUnits[name] = nil
@@ -148,15 +148,43 @@ ns.RangeDetector = {
         
         -- Get current units and check each one
         local units = self.state.unitsProvider()
-        if not units then return end
+        if not units then
+            self.state.detectedUnits = {}
+            return
+        end
         
+        -- Reset visibility for all units first
         for _, unit in ipairs(units) do
-            -- Update visibility based on detection state
-            local wasVisible = unit.isVisible
-            unit.isVisible = self.state.detectedUnits[unit.name] ~= nil
-            -- Check range for this unit if it's not already visible
-            if not unit.isVisible then
+            unit.isVisible = false
+        end
+
+        -- Track current scan
+        local currentScan = {}
+
+        -- Check each unit
+        for _, unit in ipairs(units) do
+            currentScan[unit.name] = true
+            local existingData = self.state.detectedUnits[unit.name]
+
+            -- Check range in these cases:
+            -- 1. Unit is not detected
+            -- 2. Unit was detected but hasn't been checked recently (half the timeout)
+            local shouldCheck = not existingData or
+                (now - existingData.lastSeen) > (MATCH_TIMEOUT / 2)
+
+            if shouldCheck then
                 self:CheckUnitRange(unit.name)
+            end
+            -- Update visibility based on current detection state
+            if self.state.detectedUnits[unit.name] then
+                unit.isVisible = true
+            end
+        end
+
+        -- Remove any units that weren't in this scan
+        for name in pairs(self.state.detectedUnits) do
+            if not currentScan[name] then
+                self.state.detectedUnits[name] = nil
             end
         end
     end,
