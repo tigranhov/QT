@@ -5,24 +5,30 @@
     The module works by attempting to target units and catching the ADDON_ACTION_FORBIDDEN
     event, which indicates that a unit exists and is in range but cannot be targeted
     due to addon restrictions.
+
+    Error Handling Implementation:
+    - Uses separate frames for different event types to avoid conflicts with other addons
+    - Specifically designed to be compatible with Nova World Buffs addon which also handles
+      targeting and UI errors
     
-    State Structure:
-    {
-        lastScan = number,      -- Timestamp of last scan
-        lastMatch = number,     -- Timestamp of last successful match
-        currentMatch = boolean, -- Whether we currently have any matches
-        scanData = {           -- Data about current scan
-            name = string,     -- Name of unit being scanned
-            timestamp = number -- When the scan started
-        },
-        detectedUnits = {      -- Map of units currently in range
-            [unitName] = {
-                lastSeen = number, -- Last time unit was detected
-                name = string     -- Name of the unit
-            }
-        },
-        unitsProvider = function -- Function that provides list of units to check
-    }
+    Why this approach:
+    1. Frame Separation:
+       - Main frame (QT_RangeDetector) handles ADDON_ACTION_FORBIDDEN
+       - Error frame (QT_ErrorHandler) handles UI_ERROR_MESSAGE
+       - Unique frame names prevent conflicts with other addons' frame registrations
+    
+    2. UIParent Event Handling:
+       - Preserves original UIParent error handler
+       - Only filters our specific addon's events
+       - Allows other addons (like Nova World Buffs) to handle their events normally
+    
+    3. Event Conflict Resolution:
+       - Previous approach of unregistering events from UIParent caused conflicts
+       - Nova World Buffs also handles targeting events
+       - Current approach allows both addons to coexist by isolating our error handling
+    
+    This implementation resolved UI errors that occurred specifically when Nova World Buffs
+    was active, which were caused by both addons trying to handle the same events globally.
 ]]
 
 local addonName, ns = ...
@@ -34,7 +40,7 @@ local TargetUnit = TargetUnit
 
 -- Configuration
 local POLLING_FREQUENCY = 0.25  -- How often to check for targets (in seconds)
-local MATCH_TIMEOUT = 2         -- How long to consider a target in range (in seconds)
+local MATCH_TIMEOUT = 2        -- How long to consider a target in range (in seconds)
 
 --[[
     RangeDetector Module Definition
@@ -61,18 +67,45 @@ ns.RangeDetector = {
     Initialize = function(self)
         if self.isInitialized then return end
         
-        -- Register for ADDON_ACTION_FORBIDDEN event
-        local frame = CreateFrame("Frame")
+        -- Create our frame with a unique, prefixed name
+        local frame = CreateFrame("Frame", addonName .. "_RangeDetector", UIParent)
+
+        -- Create a separate frame for error handling to avoid event conflicts
+        local errorFrame = CreateFrame("Frame", addonName .. "_ErrorHandler", UIParent)
+
+        -- Register for ADDON_ACTION_FORBIDDEN event on main frame
         frame:RegisterEvent("ADDON_ACTION_FORBIDDEN")
-        frame:SetScript("OnEvent", function(_, event, forbiddenAddon, func)
-            self:OnAddonActionForbidden(event, forbiddenAddon, func)
+        -- Register UI errors on separate frame
+        errorFrame:RegisterEvent("UI_ERROR_MESSAGE")
+
+        -- Set up event handling
+        frame:SetScript("OnEvent", function(_, event, addon, func)
+            if event == "ADDON_ACTION_FORBIDDEN" then
+                self:OnAddonActionForbidden(event, addon, func)
+            end
         end)
         
-        -- Store the frame reference
+        errorFrame:SetScript("OnEvent", function(_, event, errorType, message)
+            if event == "UI_ERROR_MESSAGE" then
+                return self:OnUIError(errorType, message)
+            end
+        end)
+
+        -- Store frame references
         self.frame = frame
+        self.errorFrame = errorFrame
         
-        -- Prevent default forbidden UI popup
-        UIParent:UnregisterEvent("ADDON_ACTION_FORBIDDEN")
+        -- Only unregister our specific events
+        local origErrorHandler = UIParent:GetScript("OnEvent")
+        UIParent:SetScript("OnEvent", function(self, event, ...)
+            if event == "ADDON_ACTION_FORBIDDEN" then
+                local addon = ...
+                if addon == addonName then return end
+            end
+            if origErrorHandler then
+                origErrorHandler(self, event, ...)
+            end
+        end)
         
         self.isInitialized = true
     end,
@@ -115,13 +148,16 @@ ns.RangeDetector = {
         
         -- Get current units and check each one
         local units = self.state.unitsProvider()
+        if not units then return end
         
         for _, unit in ipairs(units) do
             -- Update visibility based on detection state
             local wasVisible = unit.isVisible
             unit.isVisible = self.state.detectedUnits[unit.name] ~= nil
-            -- Check range for this unit
-            self:CheckUnitRange(unit.name)
+            -- Check range for this unit if it's not already visible
+            if not unit.isVisible then
+                self:CheckUnitRange(unit.name)
+            end
         end
     end,
     
@@ -144,6 +180,25 @@ ns.RangeDetector = {
         TargetUnit(unitName, true)
     end,
     
+    --[[
+        Handle UI error messages
+        @param errorType number - The error type
+        @param message string - The error message
+        @return boolean - True if error was handled, false otherwise
+    ]]
+    OnUIError = function(self, errorType, message)
+        -- Suppress targeting-related errors that we expect during range detection
+        if message and (
+                message:find("Target not in line of sight") or
+                message:find("Invalid target") or
+                message:find("You cannot target this unit") or
+                message:find("You can't do that while") or
+                message:find("No target is currently selected")
+            ) then
+            return true
+        end
+        return false
+    end,
     --[[
         Handle the ADDON_ACTION_FORBIDDEN event
         Updates unit detection state when a unit is found in range

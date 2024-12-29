@@ -21,12 +21,12 @@ local ButtonTypes = {
     ]]
     CreateTextButton = function(parent, text, textColor)
         -- Create secure button for targeting
-        local button = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate")
+        local button = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate,SecureHandlerAttributeTemplate")
         button:SetHeight(BUTTON_HEIGHT)
 
         -- Set up secure targeting
-        button:SetAttribute("type1", "macro")
-        button:SetAttribute("type2", "macro")
+        button:SetAttribute("type", "macro")
+        -- Don't set the macro text here, it will be set later when needed
         button:RegisterForClicks("AnyDown")
 
         -- Create text label with smaller font
@@ -90,12 +90,12 @@ local ButtonTypes = {
     ]]
     CreateProgressButton = function(parent, text, textColor)
         -- Create base button
-        local button = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate")
+        local button = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate,SecureHandlerAttributeTemplate")
         button:SetHeight(BUTTON_HEIGHT)
 
         -- Set up secure targeting
-        button:SetAttribute("type1", "macro")
-        button:SetAttribute("type2", "macro")
+        button:SetAttribute("type", "macro")
+        -- Don't set the macro text here, it will be set later when needed
         button:RegisterForClicks("AnyDown")
 
         -- Create text label with smaller font

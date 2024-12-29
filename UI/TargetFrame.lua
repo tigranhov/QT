@@ -144,7 +144,10 @@ local TargetListManager = {
     end,
     CreateTargetMacro = function(unitData)
         local markerID = unitData.isTurnInNpc and Constants.MARKERS.TURNIN_NPC or Constants.MARKERS.REGULAR_TARGET
-        return string.format("/targetexact %s\n/run SetRaidTarget(\"target\", %d)", unitData.name, markerID)
+        -- Use a conditional macro that only tries to set the marker if we can
+        return string.format(
+            "/targetexact %s\n/run if not InCombatLockdown() and not UnitIsDead(\"target\") then SetRaidTarget(\"target\", %d) end",
+            unitData.name, markerID)
     end
 }
 
@@ -226,9 +229,12 @@ function TargetFrame:Initialize()
 
     -- Restore position and show
     SettingsManager.RestorePosition(self.frame)
-    if QuestTargetSettings.frameShown then
-        self:Show()
-    end
+    -- Delay showing until next frame to ensure secure environment is ready
+    C_Timer.After(0, function()
+        if QuestTargetSettings.frameShown then
+            self:Show()
+        end
+    end)
 
     self.isInitialized = true
 end
@@ -369,9 +375,9 @@ function TargetFrame:UpdateButtons(units)
         button.unitData = unitData
         button.text:SetText(unitData.name)
         
+        -- Set up the macro text in a more secure way
         local macroText = TargetListManager.CreateTargetMacro(unitData)
-        button:SetAttribute("macrotext1", macroText)
-        button:SetAttribute("macrotext2", macroText)
+        button:SetAttribute("macrotext", macroText)
         if unitData.isTurnInNpc then
             button.text:SetTextColor(unpack(Constants.COLORS.TURNIN_NPC))
         else
