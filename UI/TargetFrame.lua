@@ -56,6 +56,7 @@ local Constants = {
     COLORS = {
         TURNIN_NPC = { 0, 1, 0 },       -- Green
         REGULAR_TARGET = { 1, 1, 1 },   -- White
+        MANUAL_TARGET = { 1, 1, 0 },    -- Yellow
         NO_TARGETS = { 0.5, 0.5, 0.5 }, -- Gray
     },
     MARKERS = {
@@ -359,7 +360,7 @@ function TargetFrame:UpdateButtons(units)
                 button:Hide()
                 button:SetParent(nil)
             end
-            button = unitData.isTurnInNpc and
+            button = (unitData.isTurnInNpc or unitData.objectiveType == "manual") and
                 ns.ButtonTypes.CreateTextButton(self.frame.listContainer) or
                 ns.ButtonTypes.CreateProgressButton(self.frame.listContainer)
             self.buttons[i] = button
@@ -381,7 +382,11 @@ function TargetFrame:UpdateButtons(units)
         if unitData.isTurnInNpc then
             button.text:SetTextColor(unpack(Constants.COLORS.TURNIN_NPC))
         else
-            button.text:SetTextColor(unpack(Constants.COLORS.REGULAR_TARGET))
+            if unitData.objectiveType == "manual" then
+                button.text:SetTextColor(unpack(Constants.COLORS.MANUAL_TARGET))
+            else
+                button.text:SetTextColor(unpack(Constants.COLORS.REGULAR_TARGET))
+            end
             if button.SetProgress then
                 button:SetProgress(unitData.progress or 0)
             end
@@ -403,6 +408,27 @@ function TargetFrame:RegisterSlashCommands()
             QuestTargetSettings.showCompleted = not QuestTargetSettings.showCompleted
             print(string.format("[QuestTarget] Show completed targets: %s",
                 QuestTargetSettings.showCompleted and "Enabled" or "Disabled"))
+        elseif msg == "list" then
+            local units = ns.QuestObjectives:GetVisibleUnits()
+            if not units then
+                print("[QuestTarget] No units available")
+                return
+            end
+
+            print("[QuestTarget] Raw units before filtering:")
+            for i, unit in ipairs(units) do
+                local unitType = unit.isTurnInNpc and "Turn-in NPC" or "Target"
+                local progress = not unit.isTurnInNpc and unit.progress and string.format(" (%d%%)", unit.progress) or ""
+                print(string.format("%d. %s - %s%s", i, unit.name, unitType, progress))
+            end
+
+            local filteredUnits = TargetListManager.FilterAndSortUnits(units)
+            print("\n[QuestTarget] Filtered targets:")
+            for i, unit in ipairs(filteredUnits) do
+                local unitType = unit.isTurnInNpc and "Turn-in NPC" or "Target"
+                local progress = not unit.isTurnInNpc and unit.progress and string.format(" (%d%%)", unit.progress) or ""
+                print(string.format("%d. %s - %s%s", i, unit.name, unitType, progress))
+            end
         else
             self:Toggle()
         end

@@ -29,6 +29,7 @@ local QuestiePlayer
 ns.QuestObjectives = {
     isInitialized = false,
     unitCache = {}, -- Add cache for unit states
+    manualAdditionCache = {}, -- Add cache for manual targets
     
     --[[
         Initialize the QuestObjectives module
@@ -46,7 +47,87 @@ ns.QuestObjectives = {
         -- Initialize RangeDetector if it exists
         if ns.RangeDetector then
             ns.RangeDetector:Initialize()
-            ns.RangeDetector:SetUnitsProvider(function() return self:GetQuestUnits() end)
+            ns.RangeDetector:SetUnitsProvider(function()
+                local units = self:GetQuestUnits()
+                -- Add manual targets to the list
+                for name, unit in pairs(self.manualAdditionCache) do
+                    table.insert(units, unit)
+                end
+                return units
+            end)
+        end
+
+        -- Register slash command
+        SLASH_QUESTTARGETOBJECTIVE1 = "/qto"
+        SlashCmdList["QUESTTARGETOBJECTIVE"] = function(msg)
+            local command, rest = msg:match("^(%S+)%s*(.-)$")
+            if not command then command = msg end
+            command = command:lower()
+
+            if command == "add" and rest ~= "" then
+                -- Create manual objective unit
+                local unit = {
+                    name = rest,
+                    isTarget = true,
+                    isTurnInNpc = false,
+                    isVisible = false,
+                    progress = 0,
+                    objectiveType = "manual"
+                }
+                self.manualAdditionCache[rest] = unit
+                print(string.format("[QT] Added manual objective: %s", rest))
+            elseif command == "clear" then
+                self.manualAdditionCache = {}
+                print("[QT] Cleared all manual objectives")
+            elseif command == "print" then
+                local count = 0
+                print("[QT] Manual objectives:")
+                for name, _ in pairs(self.manualAdditionCache) do
+                    print(string.format("  - %s", name))
+                    count = count + 1
+                end
+                if count == 0 then
+                    print("  No manual objectives")
+                end
+            elseif command == "data" and rest ~= "" then
+                -- Check manual targets first
+                local unit = self.manualAdditionCache[rest]
+                if unit then
+                    print(string.format("[QT] Unit data for: %s", rest))
+                    print("  Type: Manual objective")
+                    print("  Is visible: " .. (unit.isVisible and "Yes" or "No"))
+                    return
+                end
+
+                -- Check quest units
+                local units = self:GetQuestUnits()
+                for _, u in ipairs(units) do
+                    if u.name == rest then
+                        print(string.format("[QT] Unit data for: %s", rest))
+                        print("  Type: " .. (u.isTurnInNpc and "Turn-in NPC" or "Quest Target"))
+                        if u.objectiveType then
+                            print("  Objective type: " .. u.objectiveType)
+                        end
+                        if u.questName then
+                            print("  Quest: " .. u.questName)
+                        end
+                        if u.objectiveName then
+                            print("  Objective: " .. u.objectiveName)
+                        end
+                        if u.progress then
+                            print("  Progress: " .. u.progress .. "%")
+                        end
+                        print("  Is visible: " .. (u.isVisible and "Yes" or "No"))
+                        return
+                    end
+                end
+                print("[QT] Unit not found: " .. rest)
+            else
+                print("[QT] Usage:")
+                print("  /qto add <unit name> - Add manual objective")
+                print("  /qto print - Show manual objectives")
+                print("  /qto data <unit name> - Show detailed unit data")
+            end
         end
         
         self.isInitialized = true
@@ -167,16 +248,19 @@ ns.QuestObjectives = {
         @return table[] - Array of visible unit objects
     ]]
     GetVisibleUnits = function(self)
-        local units = self:GetQuestUnits()
-        local visibleUnits = {}
-        
-        for _, unit in ipairs(units) do
-            if unit.isVisible then
-                table.insert(visibleUnits, unit)
+        -- Use the same unit provider function that was given to RangeDetector
+        if ns.RangeDetector and ns.RangeDetector.state and ns.RangeDetector.state.unitsProvider then
+            local units = ns.RangeDetector.state.unitsProvider()
+            local visibleUnits = {}
+            for _, unit in ipairs(units) do
+                if unit.isVisible then
+                    table.insert(visibleUnits, unit)
+                end
             end
+            return visibleUnits
         end
         
-        return visibleUnits
+        return {}
     end,
     
     --[[
