@@ -30,6 +30,9 @@ ns.QuestObjectives = {
     isInitialized = false,
     unitCache = {}, -- Add cache for unit states
     manualAdditionCache = {}, -- Add cache for manual targets
+    defaultTimeout = 600,     -- 10 minutes in seconds
+    lastCleanupTime = 0,
+    cleanupInterval = 1,      -- Check every second
     
     --[[
         Initialize the QuestObjectives module
@@ -44,6 +47,11 @@ ns.QuestObjectives = {
         QuestiePlayer = QuestieLoader:ImportModule("QuestiePlayer")
         if not QuestiePlayer then return end
         
+        -- Create cleanup frame
+        self.cleanupFrame = CreateFrame("Frame")
+        self.cleanupFrame:SetScript("OnUpdate", function(_, elapsed)
+            self:CheckTimeouts(elapsed)
+        end)
         -- Initialize RangeDetector if it exists
         if ns.RangeDetector then
             ns.RangeDetector:Initialize()
@@ -64,26 +72,90 @@ ns.QuestObjectives = {
             if not command then command = msg end
             command = command:lower()
 
-            if command == "add" and rest ~= "" then
-                -- Create manual objective unit
-                local unit = {
-                    name = rest,
-                    isTarget = true,
-                    isTurnInNpc = false,
-                    isVisible = false,
-                    progress = 0,
-                    objectiveType = "manual"
-                }
-                self.manualAdditionCache[rest] = unit
-                print(string.format("[QT] Added manual objective: %s", rest))
+            if command == "add" then
+                if rest == "target" then
+                    -- Check if we have a target
+                    if not UnitExists("target") then
+                        print("[QT] No target selected")
+                        return
+                    end
+
+                    local targetName = UnitName("target")
+                    if not targetName then
+                        print("[QT] Could not get target name")
+                        return
+                    end
+
+                    -- Create manual objective unit with default timeout
+                    local unit = {
+                        name = targetName,
+                        isTarget = true,
+                        isTurnInNpc = false,
+                        isVisible = true, -- It's visible since we can target it
+                        progress = 0,
+                        objectiveType = "manual",
+                        addedTime = GetTime(),
+                        timeout = self.defaultTimeout
+                    }
+                    self.manualAdditionCache[targetName] = unit
+                    print(string.format("[QT] Added current target as manual objective: %s (expires in %d minutes)",
+                        targetName, self.defaultTimeout / 60))
+                else
+                    -- Parse name and optional timeout
+                    -- First, try to find a timeout at the end
+                    local fullText, timeout = rest:match("^(.+)%s+(%d+)$")
+                    local name
+
+                    if fullText then
+                        -- We found a timeout, use the text before it as name
+                        name = fullText:match("^%s*(.-)%s*$") -- trim spaces
+                    else
+                        -- No timeout found, use all text as name
+                        name = rest:match("^%s*(.-)%s*$") -- trim spaces
+                    end
+
+                    if name and name ~= "" then
+                        timeout = tonumber(timeout) or self.defaultTimeout
+                        -- Create manual objective unit
+                        local unit = {
+                            name = name,
+                            isTarget = true,
+                            isTurnInNpc = false,
+                            isVisible = false,
+                            progress = 0,
+                            objectiveType = "manual",
+                            addedTime = GetTime(),
+                            timeout = timeout
+                        }
+                        self.manualAdditionCache[name] = unit
+                        print(string.format("[QT] Added manual objective: %s (expires in %d minutes)", name, timeout / 60))
+                    else
+                        print("[QT] Usage:")
+                        print("  /qto add <unit name> [timeout in seconds] - Add manual objective")
+                        print("  /qto add target - Add current target as manual objective")
+                    end
+                end
+            elseif command == "timeout" then
+                local newTimeout = tonumber(rest)
+                if newTimeout and newTimeout > 0 then
+                    self.defaultTimeout = newTimeout
+                    print(string.format("[QT] Default timeout set to %d seconds (%d minutes)", newTimeout, newTimeout /
+                        60))
+                else
+                    print(string.format("[QT] Current default timeout: %d seconds (%d minutes)", self.defaultTimeout,
+                        self.defaultTimeout / 60))
+                    print("Usage: /qto timeout <seconds>")
+                end
             elseif command == "clear" then
                 self.manualAdditionCache = {}
                 print("[QT] Cleared all manual objectives")
             elseif command == "print" then
                 local count = 0
                 print("[QT] Manual objectives:")
-                for name, _ in pairs(self.manualAdditionCache) do
-                    print(string.format("  - %s", name))
+                local currentTime = GetTime()
+                for name, unit in pairs(self.manualAdditionCache) do
+                    local timeLeft = math.max(0, unit.timeout - (currentTime - unit.addedTime))
+                    print(string.format("  - %s (expires in %.1f minutes)", name, timeLeft / 60))
                     count = count + 1
                 end
                 if count == 0 then
@@ -93,9 +165,12 @@ ns.QuestObjectives = {
                 -- Check manual targets first
                 local unit = self.manualAdditionCache[rest]
                 if unit then
+                    local currentTime = GetTime()
+                    local timeLeft = math.max(0, unit.timeout - (currentTime - unit.addedTime))
                     print(string.format("[QT] Unit data for: %s", rest))
                     print("  Type: Manual objective")
                     print("  Is visible: " .. (unit.isVisible and "Yes" or "No"))
+                    print(string.format("  Time remaining: %.1f minutes", timeLeft / 60))
                     return
                 end
 
@@ -283,6 +358,30 @@ ns.QuestObjectives = {
         end
         
         return false, false, false, 0
+    end,
+
+    --[[
+        Check for expired manual objectives and remove them
+        @param elapsed number - Time elapsed since last update
+        @return void
+    ]]
+    CheckTimeouts = function(self, elapsed)
+        self.lastCleanupTime = self.lastCleanupTime + elapsed
+        if self.lastCleanupTime < self.cleanupInterval then return end
+        self.lastCleanupTime = 0
+
+        local currentTime = GetTime()
+        local removedCount = 0
+        for name, unit in pairs(self.manualAdditionCache) do
+            if currentTime - unit.addedTime > unit.timeout then
+                self.manualAdditionCache[name] = nil
+                removedCount = removedCount + 1
+            end
+        end
+
+        if removedCount > 0 then
+            print(string.format("[QT] Removed %d expired manual objective(s)", removedCount))
+        end
     end
 }
 

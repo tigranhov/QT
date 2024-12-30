@@ -301,10 +301,18 @@ end
 
 function TargetFrame:UpdateButtons(units)
     local filteredUnits = TargetListManager.FilterAndSortUnits(units)
-    -- Hide all existing buttons
+    -- Clean up all existing buttons more thoroughly
     for _, button in pairs(self.buttons) do
         button:Hide()
+        button:ClearAllPoints()
+        button:SetParent(nil)
+        button:SetMouseClickEnabled(false)
+        button:SetMouseMotionEnabled(false)
+        button:SetScript("OnEnter", nil)
+        button:SetScript("OnLeave", nil)
+        button:SetAttribute("macrotext", nil)
     end
+    wipe(self.buttons) -- Use wipe instead of creating new table
 
     -- Show no targets if needed
     if #filteredUnits == 0 then
@@ -336,49 +344,30 @@ function TargetFrame:UpdateButtons(units)
     contentHeight = math.max(contentHeight, Constants.FRAME.MIN_HEIGHT)
     self.frame:SetSize(requiredWidth, contentHeight)
     
-    -- Update buttons
+    -- Create new buttons for each unit
     for i, unitData in ipairs(filteredUnits) do
-        local button = self.buttons[i]
-        local shouldCreateNewButton = false
-        
-        -- Check if we need to create a new button or if existing button is wrong type
-        if not button then
-            shouldCreateNewButton = true
-        else
-            -- Check if the button is of the wrong type
-            local hasProgressBar = button.SetProgress ~= nil
-            if unitData.isTurnInNpc and hasProgressBar then
-                shouldCreateNewButton = true
-            elseif not unitData.isTurnInNpc and not hasProgressBar then
-                shouldCreateNewButton = true
-            end
-        end
-        
-        -- Create new button if needed
-        if shouldCreateNewButton then
-            if button then
-                button:Hide()
-                button:SetParent(nil)
-            end
-            button = (unitData.isTurnInNpc or unitData.objectiveType == "manual") and
-                ns.ButtonTypes.CreateTextButton(self.frame.listContainer) or
-                ns.ButtonTypes.CreateProgressButton(self.frame.listContainer)
-            self.buttons[i] = button
-            -- Enable mouse interaction only for the button area
-            button:SetMouseClickEnabled(true)
-            button:SetMouseMotionEnabled(true)
-        end
+        -- Create appropriate button type
+        local button = (unitData.isTurnInNpc or unitData.objectiveType == "manual") and
+            ns.ButtonTypes.CreateTextButton(self.frame.listContainer) or
+            ns.ButtonTypes.CreateProgressButton(self.frame.listContainer)
 
+        -- Enable mouse interaction
+        button:SetMouseClickEnabled(true)
+        button:SetMouseMotionEnabled(true)
+
+        -- Position button
         local topOffset = (i - 1) * (Constants.FRAME.BUTTON_HEIGHT + Constants.FRAME.BUTTON_SPACING)
         button:SetPoint("TOPLEFT", self.frame.listContainer, "TOPLEFT", Constants.FRAME.PADDING, -topOffset)
         button:SetPoint("TOPRIGHT", self.frame.listContainer, "TOPRIGHT", -Constants.FRAME.PADDING, -topOffset)
 
+        -- Set up button data
         button.unitData = unitData
         button.text:SetText(unitData.name)
         
-        -- Set up the macro text in a more secure way
+        -- Set up macro
         local macroText = TargetListManager.CreateTargetMacro(unitData)
         button:SetAttribute("macrotext", macroText)
+        -- Set colors and progress
         if unitData.isTurnInNpc then
             button.text:SetTextColor(unpack(Constants.COLORS.TURNIN_NPC))
         else
@@ -392,6 +381,8 @@ function TargetFrame:UpdateButtons(units)
             end
         end
         
+        -- Store button reference
+        table.insert(self.buttons, button)
         button:Show()
     end
 end
