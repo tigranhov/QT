@@ -30,7 +30,7 @@ ns.QuestObjectives = {
     isInitialized = false,
     unitCache = {}, -- Add cache for unit states
     manualAdditionCache = {}, -- Add cache for manual targets
-    defaultTimeout = 600,     -- 10 minutes in seconds
+    defaultTimeout = 1200,    -- 20 minutes in seconds
     lastCleanupTime = 0,
     cleanupInterval = 1,      -- Check every second
     
@@ -138,13 +138,11 @@ ns.QuestObjectives = {
             elseif command == "timeout" then
                 local newTimeout = tonumber(rest)
                 if newTimeout and newTimeout > 0 then
-                    self.defaultTimeout = newTimeout
-                    print(string.format("[QT] Default timeout set to %d seconds (%d minutes)", newTimeout, newTimeout /
-                        60))
+                    self.defaultTimeout = newTimeout * 60 -- Convert minutes to seconds
+                    print(string.format("[QT] Default timeout set to %d minutes", newTimeout))
                 else
-                    print(string.format("[QT] Current default timeout: %d seconds (%d minutes)", self.defaultTimeout,
-                        self.defaultTimeout / 60))
-                    print("Usage: /qto timeout <seconds>")
+                    print(string.format("[QT] Current default timeout: %d minutes", self.defaultTimeout / 60))
+                    print("Usage: /qto timeout <minutes>")
                 end
             elseif command == "clear" then
                 self.manualAdditionCache = {}
