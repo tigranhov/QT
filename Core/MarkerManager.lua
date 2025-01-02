@@ -31,127 +31,63 @@ function MarkerManager:Initialize()
     self.frame = CreateFrame("Frame")
     
     -- Monitor target changes
-    self.frame:RegisterEvent("UNIT_TARGET")
     self.frame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    self.frame:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
     self.frame:SetScript("OnEvent", function(_, event, unit)
-        if event == "UNIT_TARGET" and unit == "player" then
-            -- This is a more specific target selection event
-            self:OnTargetChanged()
-        elseif event == "PLAYER_TARGET_CHANGED" then
-            -- Keep this for clearing state when target is lost
-            if not UnitExists("target") then
-                self.currentTarget = nil
-            end
+        -- Only process events if addon is enabled
+        if not ns.enabled then return end
+
+        if event == "PLAYER_TARGET_CHANGED" then
+            self:SetUnitMarker("target", "target")
+        elseif event == "UPDATE_MOUSEOVER_UNIT" then
+            self:SetUnitMarker("mouseover", "mouseover")
         end
     end)
-
-    -- Monitor unit hover state via GameTooltip
-    local originalOnTooltipSetUnit = GameTooltip:GetScript("OnTooltipSetUnit")
-    GameTooltip:SetScript("OnTooltipSetUnit", function(tooltip, ...)
-        if originalOnTooltipSetUnit then
-            originalOnTooltipSetUnit(tooltip, ...)
-        end
-        self:OnTooltipUnit(tooltip)
-    end)
-
-    GameTooltip:HookScript("OnHide", function()
-        self:OnTooltipHide()
-    end)
-
     self.isInitialized = true
 end
 
-function MarkerManager:SetUnitMarker(unit, marker)
+function MarkerManager:SetUnitMarker(unit, markerType)
+    -- Only set markers if addon is enabled
+    -- Only process if we have QuestObjectives module
+    if not ns.QuestObjectives then return false end
+
+    -- Get visible units from QuestObjectives
+    local visibleUnits = ns.QuestObjectives:GetVisibleUnits()
+    if not visibleUnits then return false end
+
+    -- Check if unit is in our visible units list
+    local unitName = UnitName(unit)
+    if not unitName then return false end
+
+    local isVisibleUnit = false
+    for _, visibleUnit in ipairs(visibleUnits) do
+        if visibleUnit.name == unitName then
+            isVisibleUnit = true
+            break
+        end
+    end
+
+    if not isVisibleUnit then return false end
+    if not ns.enabled then return false end
     if not unit then return false end
-    
-    -- Don't override existing markers
-    if GetRaidTargetIndex(unit) then return false end
-    
-    SetRaidTarget(unit, marker)
-    return true
+
+    if markerType == "target" then
+        -- Always set skull marker on target
+        SetRaidTarget(unit, MARKER.SELECTED_TARGET) -- Skull (8)
+        return true
+    elseif markerType == "mouseover" then
+        -- Only set hover marker if unit doesn't already have one
+        if GetRaidTargetIndex(unit) then return false end
+        SetRaidTarget(unit, MARKER.HOVER_TARGET) -- Cross (7)
+        return true
+    end
+
+    return false
 end
 
 function MarkerManager:OnTargetChanged()
-    if not UnitExists("target") then
-        self.currentTarget = nil
-        return
-    end
-
-    local targetName = UnitName("target")
-    if not targetName then return end
-
-    -- Check if target is a quest unit first
-    if ns.QuestObjectives then
-        local isTarget, isTurnInNpc, _, progress = ns.QuestObjectives:IsQuestUnit(targetName)
-        
-        -- Always update our tracking
-        self.currentTarget = targetName
-        
-        -- If it's not a quest unit, just track it but don't mark
-        if not isTarget and not isTurnInNpc then return end
-        
-        -- Try to set appropriate marker
-        if isTurnInNpc then
-            self:SetUnitMarker("target", MARKER.TURN_IN_NPC)
-        elseif isTarget and (not progress or progress < 100) then
-            self:SetUnitMarker("target", MARKER.SELECTED_TARGET)
-        end
-    end
-end
-
-function MarkerManager:OnTooltipUnit(tooltip)
-    -- Get the unit from the tooltip
-    local _, unit = tooltip:GetUnit()
-    if not unit then return end
-
-    local unitName = UnitName(unit)
-    if not unitName then return end
-
-    -- If we're already hovering this unit, don't do anything
-    if self.hoveredUnit == unit then return end
-
-    -- Clear previous hover unit
-    if self.hoveredUnit and self.hoveredUnit ~= unit then
-        self.hoveredUnit = nil
-    end
-
-    -- Check if unit is a quest unit
-    if ns.QuestObjectives then
-        local isTarget, isTurnInNpc, _, progress = ns.QuestObjectives:IsQuestUnit(unitName)
-        
-        -- Turn-in NPCs always get their specific marker
-        if isTurnInNpc then
-            if self:SetUnitMarker(unit, MARKER.TURN_IN_NPC) then
-                self.hoveredUnit = unit
-            end
-            return
-        end
-        
-        -- For regular targets
-        if isTarget and (not progress or progress < 100) then
-            -- If this is not our current target, mark it with hover marker
-            if unitName ~= self.currentTarget then
-                if self:SetUnitMarker(unit, MARKER.HOVER_TARGET) then
-                    self.hoveredUnit = unit
-                end
-            end
-        end
-    end
-end
-
-function MarkerManager:OnTooltipHide()
-    -- Clear hover marker if we were showing one
-    if self.hoveredUnit then
-        local currentMarker = GetRaidTargetIndex(self.hoveredUnit)
-        -- Only clear hover markers, not selection or turn-in markers
-        if currentMarker == MARKER.HOVER_TARGET then
-            SetRaidTarget(self.hoveredUnit, 0)
-        end
-        self.hoveredUnit = nil
-    end
 end
 
 ns.MarkerManager = MarkerManager
 
--- Export the module
-return MarkerManager 
+return MarkerManager

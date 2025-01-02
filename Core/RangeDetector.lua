@@ -48,6 +48,7 @@ local MATCH_TIMEOUT = 2        -- How long to consider a target in range (in sec
 ]]
 ns.RangeDetector = {
     isInitialized = false,
+    updateFrame = nil,
     
     -- State tracking
     state = {
@@ -95,6 +96,14 @@ ns.RangeDetector = {
         self.frame = frame
         self.errorFrame = errorFrame
         
+        -- Create update frame
+        self.updateFrame = CreateFrame("Frame")
+        self.updateFrame:SetScript("OnUpdate", function(_, elapsed)
+            -- Only process if addon is enabled
+            if ns.enabled then
+                self:Update()
+            end
+        end)
         -- Only unregister our specific events
         local origErrorHandler = UIParent:GetScript("OnEvent")
         UIParent:SetScript("OnEvent", function(self, event, ...)
@@ -278,16 +287,6 @@ ns.RangeDetector = {
 
 -- Create a local reference
 local RangeDetector = ns.RangeDetector
-
--- Hook into the addon's OnUpdate to perform our range checks
-local function OnUpdate(self, elapsed)
-    RangeDetector:Update()
-end
-
--- Create and set up the update frame
-local updateFrame = CreateFrame("Frame")
-updateFrame:SetScript("OnUpdate", OnUpdate)
-updateFrame:Show() -- Make sure the frame is shown
 
 -- Export the module
 return RangeDetector 

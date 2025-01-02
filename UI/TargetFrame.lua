@@ -144,11 +144,12 @@ local TargetListManager = {
         return uniqueUnits
     end,
     CreateTargetMacro = function(unitData)
-        local markerID = unitData.isTurnInNpc and Constants.MARKERS.TURNIN_NPC or Constants.MARKERS.REGULAR_TARGET
-        -- Use a conditional macro that only tries to set the marker if we can
+        -- Create a targeting macro that:
+        -- 1. Attempts to target the unit
+        -- 2. Clears target if it's dead
         return string.format(
-            "/targetexact %s\n/run if not InCombatLockdown() and not UnitIsDead(\"target\") then SetRaidTarget(\"target\", %d) end",
-            unitData.name, markerID)
+            "/targetexact %s\n/cleartarget [dead]",
+            unitData.name)
     end
 }
 

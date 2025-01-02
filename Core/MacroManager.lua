@@ -15,7 +15,6 @@ local MacroManager = {
     isInitialized = false,
     frame = nil,
     UPDATE_FREQUENCY = 1, -- How often to update the macro (in seconds)
-    enabled = true,       -- Track enabled state
     lastTargetName = nil  -- Track last selected target
 }
 
@@ -30,6 +29,8 @@ function MacroManager:Initialize()
     -- Register for target change events
     self.frame:RegisterEvent("PLAYER_TARGET_CHANGED")
     self.frame:SetScript("OnEvent", function(_, event)
+        -- Only process events if addon is enabled
+        if not ns.enabled then return end
         if event == "PLAYER_TARGET_CHANGED" and UnitExists("target") then
             local name = UnitName("target")
             if name and ns.QuestObjectives and ns.QuestObjectives:IsQuestUnit(name) then
@@ -37,11 +38,14 @@ function MacroManager:Initialize()
             end
         end
     end)
+    
     -- Initialize update timer
     self.frame.TimeSinceLastUpdate = 0
     
     -- Set up update checks with improved timing logic
     self.frame:SetScript("OnUpdate", function(frame, elapsed)
+        -- Only process updates if addon is enabled
+        if not ns.enabled then return end
         frame.TimeSinceLastUpdate = frame.TimeSinceLastUpdate + elapsed
         
         while (frame.TimeSinceLastUpdate > self.UPDATE_FREQUENCY) do
@@ -55,33 +59,35 @@ function MacroManager:Initialize()
     SlashCmdList["QTMACRO"] = function(msg)
         msg = msg:lower()
         if msg == "enable" then
-            self:Enable()
+            ns.enabled = true
+            print("[QT] MacroManager enabled - macro will update automatically")
+            self:UpdateMacro()
         elseif msg == "disable" then
-            self:Disable()
+            ns.enabled = false
+            print("[QT] MacroManager disabled - macro will not update")
+            -- Clear macro when disabled
+            local macroIndex = GetMacroIndexByName(MACRO_NAME)
+            if macroIndex > 0 then
+                EditMacro(macroIndex, MACRO_NAME, nil, "-- QuestTarget disabled")
+            end
         else  -- toggle or empty command
-            if self.enabled then
-                self:Disable()
+            if ns.enabled then
+                ns.enabled = false
+                print("[QT] MacroManager disabled - macro will not update")
+                -- Clear macro when disabled
+                local macroIndex = GetMacroIndexByName(MACRO_NAME)
+                if macroIndex > 0 then
+                    EditMacro(macroIndex, MACRO_NAME, nil, "-- QuestTarget disabled")
+                end
             else
-                self:Enable()
+                ns.enabled = true
+                print("[QT] MacroManager enabled - macro will update automatically")
+                self:UpdateMacro()
             end
         end
     end
     
     self.isInitialized = true
-end
-
-function MacroManager:Enable()
-    if not self.isInitialized then return end
-    self.enabled = true
-    self.frame:Show()
-    print("[QT] MacroManager enabled - macro will update automatically")
-end
-
-function MacroManager:Disable()
-    if not self.isInitialized then return end
-    self.enabled = false
-    self.frame:Hide()
-    print("[QT] MacroManager disabled - macro will not update")
 end
 
 function MacroManager:CreateOrUpdateMacro()
