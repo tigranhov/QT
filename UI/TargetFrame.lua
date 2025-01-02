@@ -86,6 +86,9 @@ local SettingsManager = {
         if QuestTargetSettings.showCompleted == nil then
             QuestTargetSettings.showCompleted = false
         end
+        if QuestTargetSettings.nextTargetKeybind == nil then
+            QuestTargetSettings.nextTargetKeybind = "TAB"
+        end
     end,
     SavePosition = function(frame)
         local point, _, relativePoint, xOfs, yOfs = frame:GetPoint()
@@ -214,7 +217,8 @@ local UIFactory = {
 local TargetFrame = {
     frame = nil,
     buttons = {},
-    isInitialized = false
+    isInitialized = false,
+    currentTargetIndex = 0
 }
 
 function TargetFrame:Initialize()
@@ -228,6 +232,17 @@ function TargetFrame:Initialize()
 
     -- Register slash commands
     self:RegisterSlashCommands()
+    -- Register keybinds
+    self:RegisterKeybinds()
+
+    -- Save keybinds
+    self.frame:RegisterEvent("PLAYER_LOGOUT")
+    self.frame:SetScript("OnEvent", function(_, event)
+        if event == "PLAYER_LOGOUT" then
+            -- Save keybinds
+            SaveBindings(2) -- 2 is for per-character bindings
+        end
+    end)
 
     -- Restore position and show
     SettingsManager.RestorePosition(self.frame)
@@ -400,6 +415,23 @@ function TargetFrame:RegisterSlashCommands()
             QuestTargetSettings.showCompleted = not QuestTargetSettings.showCompleted
             print(string.format("[QuestTarget] Show completed targets: %s",
                 QuestTargetSettings.showCompleted and "Enabled" or "Disabled"))
+        elseif msg:find("^keybind%s+") then
+            local key = msg:match("^keybind%s+(.+)$")
+            if key then
+                -- Clear existing binding if it exists
+                if QuestTargetSettings.nextTargetKeybind then
+                    SetBinding(QuestTargetSettings.nextTargetKeybind)
+                end
+
+                -- Set new binding
+                key = key:upper()
+                if SetBinding(key, "CLICK " .. self.keybindButton:GetName() .. ":LeftButton") then
+                    QuestTargetSettings.nextTargetKeybind = key
+                    print(string.format("[QuestTarget] Next target keybind set to: %s", key))
+                else
+                    print("[QuestTarget] Failed to set keybind. Invalid key or already in use.")
+                end
+            end
         elseif msg == "list" then
             local units = ns.QuestObjectives:GetVisibleUnits()
             if not units then
@@ -449,6 +481,58 @@ function TargetFrame:Toggle()
     end
 end
 
+function TargetFrame:CycleNextTarget()
+    if #self.buttons == 0 then return end
+
+    -- Increment index and wrap around
+    self.currentTargetIndex = self.currentTargetIndex + 1
+    if self.currentTargetIndex > #self.buttons then
+        self.currentTargetIndex = 1
+    end
+
+    -- Execute the macro for the selected target
+    local button = self.buttons[self.currentTargetIndex]
+    if button and button:GetAttribute("macrotext") then
+        RunMacroText(button:GetAttribute("macrotext"))
+    end
+end
+
+function TargetFrame:RegisterKeybinds()
+    -- Create a secure action button for the keybind
+    local keybindButton = CreateFrame("Button", addonName .. "NextTargetButton", nil, "SecureActionButtonTemplate")
+    keybindButton:RegisterForClicks("AnyDown")
+    keybindButton:SetAttribute("type", "macro")
+    keybindButton:SetScript("PreClick", function()
+        -- Update the macro text right before the click
+        if #self.buttons > 0 then
+            local nextIndex = (self.currentTargetIndex % #self.buttons) + 1
+            local button = self.buttons[nextIndex]
+            if button then
+                keybindButton:SetAttribute("macrotext", button:GetAttribute("macrotext"))
+                -- Print the target being selected
+                if button.unitData then
+                    local targetType = button.unitData.isTurnInNpc and "Turn-in NPC" or "Target"
+                    local progress = not button.unitData.isTurnInNpc and button.unitData.progress and
+                        string.format(" (%d%%)", button.unitData.progress) or ""
+                end
+            end
+        else
+            print("[QuestTarget] No targets available")
+        end
+    end)
+
+    keybindButton:SetScript("PostClick", function()
+        self:CycleNextTarget()
+    end)
+
+    -- Set up the initial keybind
+    if QuestTargetSettings.nextTargetKeybind then
+        SetBinding(QuestTargetSettings.nextTargetKeybind, "CLICK " .. keybindButton:GetName() .. ":LeftButton")
+    end
+
+    -- Store the button reference
+    self.keybindButton = keybindButton
+end
 -- Export the module
 ns.TargetFrame = TargetFrame
 

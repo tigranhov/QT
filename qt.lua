@@ -52,6 +52,33 @@ end
 local function HandleSlashCommand(msg)
     local command = msg:lower()
     
+    if command == "help" then
+        print("|cFF00FF00QuestTarget Addon Commands:|r")
+        print("Main commands (/qt or /questtarget):")
+        print("  |cFFFFFF00/qt|r - Toggle the target frame")
+        print("  |cFFFFFF00/qt show|r - Show the target frame")
+        print("  |cFFFFFF00/qt hide|r - Hide the target frame")
+        print("  |cFFFFFF00/qt enable|r - Enable the addon")
+        print("  |cFFFFFF00/qt disable|r - Disable the addon")
+        print("  |cFFFFFF00/qt help|r - Show this help message")
+
+        print("\nTarget Frame commands (/qtf):")
+        print("  |cFFFFFF00/qtf|r - Toggle the target frame")
+        print("  |cFFFFFF00/qtf enable|r - Show the target frame")
+        print("  |cFFFFFF00/qtf disable|r - Hide the target frame")
+        print("  |cFFFFFF00/qtf completed|r - Toggle showing completed targets")
+        print("  |cFFFFFF00/qtf keybind <key>|r - Set the next target keybind")
+        print("  |cFFFFFF00/qtf list|r - List all current targets")
+
+        print("\nMarker Manager commands (/qtm):")
+        print("  |cFFFFFF00/qtm|r - Toggle auto-marking")
+        print("  |cFFFFFF00/qtm enable|r - Enable auto-marking")
+        print("  |cFFFFFF00/qtm disable|r - Disable auto-marking")
+        print("  |cFFFFFF00/qtm clear|r - Clear all raid markers")
+        print("  |cFFFFFF00/qtm config|r - Open marker configuration")
+        print("  |cFFFFFF00/qtmi|r - Toggle party restrictions for markers")
+        return
+    end
     if command == "toggle" or command == "" then
         -- Toggle frame visibility
         if QT.TargetFrame then
