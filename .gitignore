@@ -1,0 +1,21 @@
+# Release files
+*.zip
+release-temp/
+
+# Temporary files
+*.tmp
+*.bak
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*~
+
+# WoW specific
+Saved/
+WTF/
+
+# OS specific
+.DS_Store
+Thumbs.db 
