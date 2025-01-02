@@ -22,7 +22,8 @@ local MarkerManager = {
     isInitialized = false,
     currentTarget = nil,
     hoveredUnit = nil,
-    frame = nil
+    frame = nil,
+    ignorePartyRestriction = false
 }
 
 function MarkerManager:Initialize()
@@ -30,6 +31,16 @@ function MarkerManager:Initialize()
 
     self.frame = CreateFrame("Frame")
     
+    -- Register slash command
+    SLASH_QTMI1 = "/qtmi"
+    SlashCmdList["QTMI"] = function(msg)
+        self.ignorePartyRestriction = not self.ignorePartyRestriction
+        if self.ignorePartyRestriction then
+            print("QT: Marker party restrictions disabled")
+        else
+            print("QT: Marker party restrictions enabled")
+        end
+    end
     -- Monitor target changes
     self.frame:RegisterEvent("PLAYER_TARGET_CHANGED")
     self.frame:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
@@ -68,8 +79,10 @@ function MarkerManager:SetUnitMarker(unit, markerType)
     end
 
     if not isVisibleUnit then return false end
+    -- Check if player is in a party and is not the leader (unless override is active)
+    if not self.ignorePartyRestriction and IsInGroup() and not UnitIsGroupLeader("player") then return false end
+
     if not ns.enabled then return false end
-    if not unit then return false end
 
     if markerType == "target" then
         -- Always set skull marker on target
