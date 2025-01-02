@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1] - 2024-01-24
+
+### Fixed
+- Fixed issue with target marking not working in certain scenarios
+- Improved marker handling when target already has a different marker
+- Added small delay to ensure reliable marker setting
+
 ## [1.0.0] - 2024-01-24
 
 ### Features
