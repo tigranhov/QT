@@ -50,7 +50,9 @@ local function EnableSubsystems()
 end
 -- Slash command handler
 local function HandleSlashCommand(msg)
-    local command = msg:lower()
+    local command, rest = msg:match("^(%S+)%s*(.-)$")
+    if not command then command = msg end
+    command = command:lower()
     
     if command == "help" then
         print("|cFF00FF00QuestTarget Addon Commands:|r")
@@ -60,15 +62,18 @@ local function HandleSlashCommand(msg)
         print("  |cFFFFFF00/qt hide|r - Hide the target frame")
         print("  |cFFFFFF00/qt enable|r - Enable the addon")
         print("  |cFFFFFF00/qt disable|r - Disable the addon")
+        print("  |cFFFFFF00/qt completed|r - Toggle showing completed targets")
+        print("  |cFFFFFF00/qt keybind <key>|r - Set the next target keybind")
+        print("  |cFFFFFF00/qt list|r - List all current targets")
         print("  |cFFFFFF00/qt help|r - Show this help message")
 
-        print("\nTarget Frame commands (/qtf):")
-        print("  |cFFFFFF00/qtf|r - Toggle the target frame")
-        print("  |cFFFFFF00/qtf enable|r - Show the target frame")
-        print("  |cFFFFFF00/qtf disable|r - Hide the target frame")
-        print("  |cFFFFFF00/qtf completed|r - Toggle showing completed targets")
-        print("  |cFFFFFF00/qtf keybind <key>|r - Set the next target keybind")
-        print("  |cFFFFFF00/qtf list|r - List all current targets")
+        print("\nQuest Objectives commands (/qto):")
+        print("  |cFFFFFF00/qto add <name>|r - Add a custom target by name")
+        print("  |cFFFFFF00/qto add target|r - Add your current target as a custom target")
+        print("  |cFFFFFF00/qto timeout <minutes>|r - Set the timeout for custom targets")
+        print("  |cFFFFFF00/qto clear|r - Clear all manual objectives")
+        print("  |cFFFFFF00/qto print|r - Show current manual objectives")
+        print("  |cFFFFFF00/qto data <unit name>|r - Show detailed unit data")
 
         print("\nMarker Manager commands (/qtm):")
         print("  |cFFFFFF00/qtm|r - Toggle auto-marking")
@@ -79,6 +84,7 @@ local function HandleSlashCommand(msg)
         print("  |cFFFFFF00/qtmi|r - Toggle party restrictions for markers")
         return
     end
+
     if command == "toggle" or command == "" then
         -- Toggle frame visibility
         if QT.TargetFrame then
@@ -104,6 +110,43 @@ local function HandleSlashCommand(msg)
         QT.enabled = false
         print("QuestTarget addon disabled")
         DisableSubsystems()
+    elseif command == "completed" then
+        if QT.TargetFrame then
+            QuestTargetSettings.showCompleted = not QuestTargetSettings.showCompleted
+            print(string.format("[QuestTarget] Show completed targets: %s",
+                QuestTargetSettings.showCompleted and "Enabled" or "Disabled"))
+        end
+    elseif command == "keybind" and rest ~= "" then
+        if QT.TargetFrame and QT.TargetFrame.keybindButton then
+            -- Clear existing binding if it exists
+            if QuestTargetSettings.nextTargetKeybind then
+                SetBinding(QuestTargetSettings.nextTargetKeybind)
+            end
+
+            -- Set new binding
+            local key = rest:upper()
+            if SetBinding(key, "CLICK " .. QT.TargetFrame.keybindButton:GetName() .. ":LeftButton") then
+                QuestTargetSettings.nextTargetKeybind = key
+                print(string.format("[QuestTarget] Next target keybind set to: %s", key))
+            else
+                print("[QuestTarget] Failed to set keybind. Invalid key or already in use.")
+            end
+        end
+    elseif command == "list" then
+        if QT.QuestObjectives then
+            local units = QT.QuestObjectives:GetVisibleUnits()
+            if not units or #units == 0 then
+                print("[QuestTarget] No units available")
+                return
+            end
+
+            print("[QuestTarget] Current targets:")
+            for i, unit in ipairs(units) do
+                local unitType = unit.isTurnInNpc and "Turn-in NPC" or "Target"
+                local progress = not unit.isTurnInNpc and unit.progress and string.format(" (%d%%)", unit.progress) or ""
+                print(string.format("%d. %s - %s%s", i, unit.name, unitType, progress))
+            end
+        end
     end
 end
 

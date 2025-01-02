@@ -230,8 +230,6 @@ function TargetFrame:Initialize()
     -- Create main frame
     self:CreateFrame()
 
-    -- Register slash commands
-    self:RegisterSlashCommands()
     -- Register keybinds
     self:RegisterKeybinds()
 
@@ -400,62 +398,6 @@ function TargetFrame:UpdateButtons(units)
         -- Store button reference
         table.insert(self.buttons, button)
         button:Show()
-    end
-end
-
-function TargetFrame:RegisterSlashCommands()
-    SLASH_TARGETFRAME1 = "/qtf"
-    SlashCmdList["TARGETFRAME"] = function(msg)
-        msg = msg:lower()
-        if msg == "enable" then
-            self:Show()
-        elseif msg == "disable" then
-            self:Hide()
-        elseif msg == "completed" then
-            QuestTargetSettings.showCompleted = not QuestTargetSettings.showCompleted
-            print(string.format("[QuestTarget] Show completed targets: %s",
-                QuestTargetSettings.showCompleted and "Enabled" or "Disabled"))
-        elseif msg:find("^keybind%s+") then
-            local key = msg:match("^keybind%s+(.+)$")
-            if key then
-                -- Clear existing binding if it exists
-                if QuestTargetSettings.nextTargetKeybind then
-                    SetBinding(QuestTargetSettings.nextTargetKeybind)
-                end
-
-                -- Set new binding
-                key = key:upper()
-                if SetBinding(key, "CLICK " .. self.keybindButton:GetName() .. ":LeftButton") then
-                    QuestTargetSettings.nextTargetKeybind = key
-                    print(string.format("[QuestTarget] Next target keybind set to: %s", key))
-                else
-                    print("[QuestTarget] Failed to set keybind. Invalid key or already in use.")
-                end
-            end
-        elseif msg == "list" then
-            local units = ns.QuestObjectives:GetVisibleUnits()
-            if not units then
-                print("[QuestTarget] No units available")
-                return
-            end
-
-            print("[QuestTarget] Raw units before filtering:")
-            for i, unit in ipairs(units) do
-                local unitType = unit.isTurnInNpc and "Turn-in NPC" or "Target"
-                local progress = not unit.isTurnInNpc and unit.progress and string.format(" (%d%%)", unit.progress) or ""
-                print(string.format("%d. %s - %s%s", i, unit.name, unitType, progress))
-            end
-
-            local filteredUnits = TargetListManager.FilterAndSortUnits(units)
-            print("\n[QuestTarget] Filtered targets:")
-            for i, unit in ipairs(filteredUnits) do
-                local unitType = unit.isTurnInNpc and "Turn-in NPC" or "Target"
-                local progress = not unit.isTurnInNpc and unit.progress and string.format(" (%d%%)", unit.progress) or ""
-                print(string.format("%d. %s - %s%s", i, unit.name, unitType, progress))
-            end
-        else
-            self:Toggle()
-        end
     end
 end
 

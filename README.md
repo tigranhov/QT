@@ -45,15 +45,10 @@ The addon automatically activates when you log in. The target frame can be dragg
 - `/qt hide` - Hide the target frame
 - `/qt enable` - Enable the addon
 - `/qt disable` - Disable the addon
+- `/qt completed` - Toggle showing completed targets
+- `/qt keybind <key>` - Set the next target keybind
+- `/qt list` - List all current targets
 - `/qt help` - Show all available commands
-
-#### Target Frame Commands (`/qtf`)
-- `/qtf` - Toggle the target frame
-- `/qtf enable` - Show the target frame
-- `/qtf disable` - Hide the target frame
-- `/qtf completed` - Toggle showing completed targets
-- `/qtf keybind <key>` - Set the next target keybind
-- `/qtf list` - List all current targets
 
 #### Quest Objectives Commands (`/qto`)
 - `/qto add <name>` - Add a custom target by name
