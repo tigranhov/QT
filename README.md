@@ -69,8 +69,7 @@ The addon automatically activates when you log in. The target frame can be dragg
 The addon can be configured through:
 1. In-game slash commands
 2. Draggable frames for positioning
-3. Marker configuration panel (`/qtm config`)
-4. Custom target timeout settings (`/qto timeout`)
+3. Custom target timeout settings (`/qto timeout`)
 
 ## Features in Detail
 
