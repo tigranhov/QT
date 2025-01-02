@@ -79,20 +79,38 @@ function MarkerManager:SetUnitMarker(unit, markerType)
     end
 
     if not isVisibleUnit then return false end
+    
     -- Check if player is in a party and is not the leader (unless override is active)
-    if not self.ignorePartyRestriction and IsInGroup() and not UnitIsGroupLeader("player") then return false end
+    if not self.ignorePartyRestriction and IsInGroup() and not UnitIsGroupLeader("player") then
+        print("[QT] Not group leader (use /qtmi to override)")
+        return false
+    end
 
     if not ns.enabled then return false end
 
     if markerType == "target" then
         -- Always set skull marker on target
-        SetRaidTarget(unit, MARKER.SELECTED_TARGET) -- Skull (8)
-        return true
+        local currentMarker = GetRaidTargetIndex(unit)
+
+        -- If the unit already has the marker we want, consider it a success
+        if currentMarker == MARKER.SELECTED_TARGET then return true end
+
+        -- Try to clear any existing marker first if different from what we want
+        if currentMarker and currentMarker ~= MARKER.SELECTED_TARGET then
+            SetRaidTarget(unit, 0)
+        end
+
+        -- Small delay to ensure marker clearing is processed
+        C_Timer.After(0.1, function()
+            SetRaidTarget(unit, MARKER.SELECTED_TARGET) -- Skull (8)
+        end)
+
+        return true -- Return true since we've initiated the marking process
     elseif markerType == "mouseover" then
         -- Only set hover marker if unit doesn't already have one
         if GetRaidTargetIndex(unit) then return false end
-        SetRaidTarget(unit, MARKER.HOVER_TARGET) -- Cross (7)
-        return true
+        local success = SetRaidTarget(unit, MARKER.HOVER_TARGET) -- Cross (7)
+        return success
     end
 
     return false
