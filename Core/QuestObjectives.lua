@@ -344,6 +344,49 @@ ns.QuestObjectives = {
     end,
     
     --[[
+        Get filtered and sorted units based on priority rules:
+        1. Remove duplicates while preserving turn-in NPC priority
+        2. Filter out completed targets unless explicitly enabled
+        3. Sort turn-in NPCs first, then regular targets alphabetically
+        @param units table[] - Array of unit objects to filter and sort
+        @return table[] - Filtered and sorted array of unit objects
+    ]]
+    GetFilteredUnits = function(self, units)
+        if not units or #units == 0 then return {} end
+
+        -- Remove duplicates while preserving turn-in NPC priority
+        local uniqueUnits = {}
+        local seenNames = {}
+
+        -- First pass: add turn-in NPCs
+        for _, unit in ipairs(units) do
+            if unit.isTurnInNpc and not seenNames[unit.name] then
+                seenNames[unit.name] = true
+                table.insert(uniqueUnits, unit)
+            end
+        end
+
+        -- Second pass: add regular targets
+        for _, unit in ipairs(units) do
+            if not unit.isTurnInNpc and not seenNames[unit.name] then
+                if not unit.progress or unit.progress < 100 or QuestTargetSettings.showCompleted then
+                    seenNames[unit.name] = true
+                    table.insert(uniqueUnits, unit)
+                end
+            end
+        end
+
+        -- Sort units
+        table.sort(uniqueUnits, function(a, b)
+            if a.isTurnInNpc ~= b.isTurnInNpc then
+                return a.isTurnInNpc
+            end
+            return a.name < b.name
+        end)
+
+        return uniqueUnits
+    end,
+    --[[
         Check if a unit is a quest target or turn-in NPC
         @param unitName string - Name of the unit to check
         @return boolean, boolean, boolean, number - isTarget, isTurnInNpc, isVisible, progress

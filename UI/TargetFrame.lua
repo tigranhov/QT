@@ -111,41 +111,6 @@ local SettingsManager = {
 
 -- Target List Manager Component
 local TargetListManager = {
-    FilterAndSortUnits = function(units)
-        if not units or #units == 0 then return {} end
-
-        -- Remove duplicates while preserving turn-in NPC priority
-        local uniqueUnits = {}
-        local seenNames = {}
-
-        -- First pass: add turn-in NPCs
-        for _, unit in ipairs(units) do
-            if unit.isTurnInNpc and not seenNames[unit.name] then
-                seenNames[unit.name] = true
-                table.insert(uniqueUnits, unit)
-            end
-        end
-
-        -- Second pass: add regular targets
-        for _, unit in ipairs(units) do
-            if not unit.isTurnInNpc and not seenNames[unit.name] then
-                if not unit.progress or unit.progress < 100 or QuestTargetSettings.showCompleted then
-                    seenNames[unit.name] = true
-                    table.insert(uniqueUnits, unit)
-                end
-            end
-        end
-
-        -- Sort units
-        table.sort(uniqueUnits, function(a, b)
-            if a.isTurnInNpc ~= b.isTurnInNpc then
-                return a.isTurnInNpc
-            end
-            return a.name < b.name
-        end)
-
-        return uniqueUnits
-    end,
     CreateTargetMacro = function(unitData)
         -- Create a targeting macro that:
         -- 1. Attempts to target the unit
@@ -314,7 +279,7 @@ function TargetFrame:CreateFrame()
 end
 
 function TargetFrame:UpdateButtons(units)
-    local filteredUnits = TargetListManager.FilterAndSortUnits(units)
+    local filteredUnits = ns.QuestObjectives:GetFilteredUnits(units)
     -- Clean up all existing buttons more thoroughly
     for _, button in pairs(self.buttons) do
         button:Hide()

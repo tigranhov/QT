@@ -64,23 +64,24 @@ function MarkerManager:SetUnitMarker(unit, markerType)
     -- Only process if we have QuestObjectives module
     if not ns.QuestObjectives then return false end
 
-    -- Get visible units from QuestObjectives
+    -- Get filtered units from QuestObjectives
     local visibleUnits = ns.QuestObjectives:GetVisibleUnits()
-    if not visibleUnits then return false end
+    local filteredUnits = ns.QuestObjectives:GetFilteredUnits(visibleUnits)
+    if not filteredUnits then return false end
 
-    -- Check if unit is in our visible units list
+    -- Check if unit is in our filtered units list
     local unitName = UnitName(unit)
     if not unitName then return false end
 
-    local isVisibleUnit = false
-    for _, visibleUnit in ipairs(visibleUnits) do
-        if visibleUnit.name == unitName then
-            isVisibleUnit = true
+    local isValidUnit = false
+    for _, filteredUnit in ipairs(filteredUnits) do
+        if filteredUnit.name == unitName then
+            isValidUnit = true
             break
         end
     end
 
-    if not isVisibleUnit then return false end
+    if not isValidUnit then return false end
     
     -- Check if player is in a party and is not the leader (unless override is active)
     if not self.ignorePartyRestriction and IsInGroup() and not UnitIsGroupLeader("player") then
