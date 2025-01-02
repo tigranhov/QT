@@ -30,7 +30,7 @@ ns.QuestObjectives = {
     isInitialized = false,
     unitCache = {}, -- Add cache for unit states
     manualAdditionCache = {}, -- Add cache for manual targets
-    defaultTimeout = 1200,    -- 20 minutes in seconds
+    defaultTimeout = 1200,    -- 20 minutes in seconds (will be overwritten by saved value)
     lastCleanupTime = 0,
     cleanupInterval = 1,      -- Check every second
     
@@ -40,6 +40,12 @@ ns.QuestObjectives = {
         @return void
     ]]
     Initialize = function(self)
+        -- Initialize saved variables if they don't exist
+        QuestTargetSettings = QuestTargetSettings or {}
+        QuestTargetSettings.defaultTimeout = QuestTargetSettings.defaultTimeout or self.defaultTimeout
+
+        -- Load saved timeout
+        self.defaultTimeout = QuestTargetSettings.defaultTimeout
         -- Import required Questie modules
         QuestieDB = QuestieLoader:ImportModule("QuestieDB")
         if not QuestieDB then return end
@@ -139,6 +145,7 @@ ns.QuestObjectives = {
                 local newTimeout = tonumber(rest)
                 if newTimeout and newTimeout > 0 then
                     self.defaultTimeout = newTimeout * 60 -- Convert minutes to seconds
+                    QuestTargetSettings.defaultTimeout = self.defaultTimeout -- Save to persistent storage
                     print(string.format("[QT] Default timeout set to %d minutes", newTimeout))
                 else
                     print(string.format("[QT] Current default timeout: %d minutes", self.defaultTimeout / 60))
