@@ -58,13 +58,11 @@ The addon automatically activates when you log in. The target frame can be dragg
 - `/qto print` - Show current manual objectives
 - `/qto data <unit name>` - Show detailed unit data
 
-#### Marker Manager Commands (`/qtm`)
-- `/qtm` - Toggle auto-marking
-- `/qtm enable` - Enable auto-marking
-- `/qtm disable` - Disable auto-marking
-- `/qtm clear` - Clear all raid markers
-- `/qtm config` - Open marker configuration
-- `/qtmi` - Toggle party restrictions for markers
+#### Marker and Macro Commands
+- `/qtm` - Toggle macro manager (enables/disables automatic quest target macro updates)
+- `/qtm enable` - Enable macro manager
+- `/qtm disable` - Disable macro manager
+- `/qtmi` - Toggle party restrictions for markers (allows non-party leaders to set markers)
 
 ## Configuration
 

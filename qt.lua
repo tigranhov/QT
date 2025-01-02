@@ -75,12 +75,10 @@ local function HandleSlashCommand(msg)
         print("  |cFFFFFF00/qto print|r - Show current manual objectives")
         print("  |cFFFFFF00/qto data <unit name>|r - Show detailed unit data")
 
-        print("\nMarker Manager commands (/qtm):")
-        print("  |cFFFFFF00/qtm|r - Toggle auto-marking")
-        print("  |cFFFFFF00/qtm enable|r - Enable auto-marking")
-        print("  |cFFFFFF00/qtm disable|r - Disable auto-marking")
-        print("  |cFFFFFF00/qtm clear|r - Clear all raid markers")
-        print("  |cFFFFFF00/qtm config|r - Open marker configuration")
+        print("\nMarker and Macro commands:")
+        print("  |cFFFFFF00/qtm|r - Toggle macro manager")
+        print("  |cFFFFFF00/qtm enable|r - Enable macro manager")
+        print("  |cFFFFFF00/qtm disable|r - Disable macro manager")
         print("  |cFFFFFF00/qtmi|r - Toggle party restrictions for markers")
         return
     end
