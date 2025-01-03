@@ -279,7 +279,7 @@ function TargetFrame:CreateFrame()
 end
 
 function TargetFrame:UpdateButtons(units)
-    local filteredUnits = ns.QuestObjectives:GetFilteredUnits(units)
+    local filteredUnits = ns.QuestObjectives:GetFilteredUnits()
     -- Clean up all existing buttons more thoroughly
     for _, button in pairs(self.buttons) do
         button:Hide()

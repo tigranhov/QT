@@ -65,8 +65,7 @@ function MarkerManager:SetUnitMarker(unit, markerType)
     if not ns.QuestObjectives then return false end
 
     -- Get filtered units from QuestObjectives
-    local visibleUnits = ns.QuestObjectives:GetVisibleUnits()
-    local filteredUnits = ns.QuestObjectives:GetFilteredUnits(visibleUnits)
+    local filteredUnits = ns.QuestObjectives:GetFilteredUnits()
     if not filteredUnits then return false end
 
     -- Check if unit is in our filtered units list

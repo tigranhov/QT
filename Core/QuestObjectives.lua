@@ -348,10 +348,10 @@ ns.QuestObjectives = {
         1. Remove duplicates while preserving turn-in NPC priority
         2. Filter out completed targets unless explicitly enabled
         3. Sort turn-in NPCs first, then regular targets alphabetically
-        @param units table[] - Array of unit objects to filter and sort
         @return table[] - Filtered and sorted array of unit objects
     ]]
-    GetFilteredUnits = function(self, units)
+    GetFilteredUnits = function(self)
+        local units = self:GetVisibleUnits()
         if not units or #units == 0 then return {} end
 
         -- Remove duplicates while preserving turn-in NPC priority
