@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0] - 2024-01-24
+
+### Added
+- Enhanced slash command functionality with improved documentation
+- Enhanced unit filtering system in MarkerManager and QuestObjectives
+
+### Changed
+- Streamlined unit filtering in MarkerManager and QuestObjectives
+- Updated Marker Manager commands and documentation
+- Improved marker configuration system
+
+### Fixed
+- Removed redundant marker configuration panel mention from README.md
+
 ## [1.0.1] - 2024-01-24
 
 ### Fixed
