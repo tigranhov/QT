@@ -60,6 +60,8 @@ end
 function MarkerManager:SetUnitMarker(unit, markerType)
     -- Check if we have a valid unit first
     if not UnitExists(unit) then return false end
+    -- Don't mark dead units
+    if UnitIsDead(unit) then return false end
     -- Only set markers if addon is enabled
     -- Only process if we have QuestObjectives module
     if not ns.QuestObjectives then return false end
@@ -103,7 +105,7 @@ function MarkerManager:SetUnitMarker(unit, markerType)
 
         -- Small delay to ensure marker clearing is processed
         C_Timer.After(0.1, function()
-            if UnitExists(unit) then                        -- Double check unit still exists after delay
+            if UnitExists(unit) and not UnitIsDead(unit) then -- Double check unit still exists and is not dead after delay
                 SetRaidTarget(unit, MARKER.SELECTED_TARGET) -- Skull (8)
             end
         end)
