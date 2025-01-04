@@ -253,58 +253,61 @@ ns.QuestObjectives = {
             -- Add targetable units from objectives
             if quest.Objectives then
                 for _, objective in pairs(quest.Objectives) do
-                    -- Only process incomplete objectives
-                    if objective.Needed and objective.Collected then
+                    -- Process objectives that have valid progress tracking
+                    if objective.Needed and objective.Collected ~= nil then
                         -- Calculate progress percentage
                         local progress = math.floor((objective.Collected / objective.Needed) * 100)
-                        -- Add monster targets
-                        if objective.Type == "monster" and objective.spawnList then
-                            for _, spawn in pairs(objective.spawnList) do
-                                if spawn.Name and not currentUnits[spawn.Name] then
-                                    -- Use cached unit if exists, otherwise create new
-                                    local unit = self.unitCache[spawn.Name] or {
-                                        name = spawn.Name,
-                                        isTarget = true,
-                                        isTurnInNpc = false,
-                                        isVisible = false,
-                                        progress = 0,
-                                        questName = quest.name or "Unknown Quest",
-                                        objectiveName = objective.Description or "",
-                                        objectiveType = "kill"
-                                    }
-                                    -- Update progress
-                                    unit.progress = progress
-                                    unit.questName = quest.name or "Unknown Quest"
-                                    unit.objectiveName = objective.Description or ""
-                                    unit.objectiveType = "kill"
-                                    self.unitCache[spawn.Name] = unit
-                                    currentUnits[spawn.Name] = true
-                                    table.insert(units, unit)
+                        -- Only process if this specific objective isn't complete (unless showCompleted is enabled)
+                        if progress < 100 or QuestTargetSettings.showCompleted then
+                            -- Add monster targets
+                            if objective.Type == "monster" and objective.spawnList then
+                                for _, spawn in pairs(objective.spawnList) do
+                                    if spawn.Name and not currentUnits[spawn.Name] then
+                                        -- Use cached unit if exists, otherwise create new
+                                        local unit = self.unitCache[spawn.Name] or {
+                                            name = spawn.Name,
+                                            isTarget = true,
+                                            isTurnInNpc = false,
+                                            isVisible = false,
+                                            progress = 0,
+                                            questName = quest.name or "Unknown Quest",
+                                            objectiveName = objective.Description or "",
+                                            objectiveType = "kill"
+                                        }
+                                        -- Update progress
+                                        unit.progress = progress
+                                        unit.questName = quest.name or "Unknown Quest"
+                                        unit.objectiveName = objective.Description or ""
+                                        unit.objectiveType = "kill"
+                                        self.unitCache[spawn.Name] = unit
+                                        currentUnits[spawn.Name] = true
+                                        table.insert(units, unit)
+                                    end
                                 end
-                            end
-                        -- Add monsters that drop required items
-                        elseif objective.Type == "item" and objective.spawnList then
-                            for _, spawn in pairs(objective.spawnList) do
-                                if spawn.Name and not currentUnits[spawn.Name] then
-                                    -- Use cached unit if exists, otherwise create new
-                                    local unit = self.unitCache[spawn.Name] or {
-                                        name = spawn.Name,
-                                        isTarget = true,
-                                        isTurnInNpc = false,
-                                        isVisible = false,
-                                        progress = 0,
-                                        questName = quest.name or "Unknown Quest",
-                                        objectiveName = objective.Description or "",
-                                        objectiveType = "collect"
-                                    }
-                                    -- Update progress
-                                    unit.progress = progress
-                                    unit.questName = quest.name or "Unknown Quest"
-                                    unit.objectiveName = objective.Description or ""
-                                    unit.objectiveType = "collect"
-                                    self.unitCache[spawn.Name] = unit
-                                    currentUnits[spawn.Name] = true
-                                    table.insert(units, unit)
+                                -- Add monsters that drop required items
+                            elseif objective.Type == "item" and objective.spawnList then
+                                for _, spawn in pairs(objective.spawnList) do
+                                    if spawn.Name and not currentUnits[spawn.Name] then
+                                        -- Use cached unit if exists, otherwise create new
+                                        local unit = self.unitCache[spawn.Name] or {
+                                            name = spawn.Name,
+                                            isTarget = true,
+                                            isTurnInNpc = false,
+                                            isVisible = false,
+                                            progress = 0,
+                                            questName = quest.name or "Unknown Quest",
+                                            objectiveName = objective.Description or "",
+                                            objectiveType = "collect"
+                                        }
+                                        -- Update progress
+                                        unit.progress = progress
+                                        unit.questName = quest.name or "Unknown Quest"
+                                        unit.objectiveName = objective.Description or ""
+                                        unit.objectiveType = "collect"
+                                        self.unitCache[spawn.Name] = unit
+                                        currentUnits[spawn.Name] = true
+                                        table.insert(units, unit)
+                                    end
                                 end
                             end
                         end
