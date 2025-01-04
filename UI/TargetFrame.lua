@@ -416,15 +416,7 @@ function TargetFrame:RegisterKeybinds()
             local button = self.buttons[nextIndex]
             if button then
                 keybindButton:SetAttribute("macrotext", button:GetAttribute("macrotext"))
-                -- Print the target being selected
-                if button.unitData then
-                    local targetType = button.unitData.isTurnInNpc and "Turn-in NPC" or "Target"
-                    local progress = not button.unitData.isTurnInNpc and button.unitData.progress and
-                        string.format(" (%d%%)", button.unitData.progress) or ""
-                end
             end
-        else
-            print("[QuestTarget] No targets available")
         end
     end)
 

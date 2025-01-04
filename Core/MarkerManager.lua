@@ -84,7 +84,6 @@ function MarkerManager:SetUnitMarker(unit, markerType)
     
     -- Check if player is in a party and is not the leader (unless override is active)
     if not self.ignorePartyRestriction and IsInGroup() and not UnitIsGroupLeader("player") then
-        print("[QT] Not group leader (use /qtmi to override)")
         return false
     end
 
