@@ -8,7 +8,7 @@ These are my (AI assistant) steps for creating a new release of the QT addon.
    - Check VERSION file for current version
    - Read CHANGELOG.md for recent changes
    - Review qt.toc for current metadata
-   - Find last release tag to determine changes since then
+   - Find latest release tag using `git describe --tags --abbrev=0`
 
 2. Version determination:
    - Based on changes since last release, determine if this should be:
@@ -24,12 +24,15 @@ These are my (AI assistant) steps for creating a new release of the QT addon.
    - Update version in qt.toc
    
 2. Update CHANGELOG.md:
-   - Compare changes between last release tag and current state:
-     - Read all commit messages since last tag
-     - Review actual code changes in each commit
-     - Look for patterns and themes in changes
-     - Note any breaking changes or API modifications
-     - Check for dependency updates
+   - Compare changes between latest release tag and current branch:
+     - Get latest release tag: `git describe --tags --abbrev=0`
+     - View all commits: `git log <latest_tag>..HEAD --pretty=format:"%h - %s (%an)"` 
+     - Review code changes: `git diff <latest_tag>..HEAD`
+     - Analyze commit messages for themes and patterns
+     - Check modified files: `git diff --name-status <latest_tag>..HEAD`
+     - Review pull requests merged since last release
+     - Identify breaking changes through code analysis
+     - Note dependency updates from commit history
    - Add new version section at top
    - Write comprehensive changelog entries based on analysis:
      - Added: New features with clear descriptions of functionality
@@ -56,16 +59,20 @@ These are my (AI assistant) steps for creating a new release of the QT addon.
 
 ## Step 4: Release Creation
 
-1. Verify create-release.ps1 will:
-   - Exclude development files (.git, .gitignore, GUIDELINES.md, create-release.ps1)
-   - Package all required files
-   - Create QT.zip with correct structure
+1. Create release package:
+   - Open PowerShell in the addon directory
+   - Run `.\create-release.ps1` to generate QT.zip
+   - Verify QT.zip was created successfully
+   - Check contents of QT.zip to ensure all required files are included
+   - Verify excluded files are not in the package (.git, .gitignore, GUIDELINES.md, create-release.ps1)
 
 2. Release Tags:
    - Wait until after CHANGELOG.md is updated and committed
    - Tag format should be "v{X.Y.Z}" (e.g., v1.1.0)
-   - Tag message should include version, date, and full changelog entry for this version
-   - Ensure tag matches VERSION file exactly
+   - Create tag: `git tag -a v{X.Y.Z} -m "Version {X.Y.Z} - <changelog entry>"`
+   - Push the new tag: `git push origin v{X.Y.Z}`
+   - Push all tags: `git push --tags`
+   - Verify tags are visible in the repository
 
 Note: As an AI, I should always:
 - Be explicit about version changes

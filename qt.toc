@@ -2,7 +2,7 @@
 ## Title: QuestTarget
 ## Notes: A simple addon
 ## Author: YourName
-## Version: 1.1.0
+## Version: 1.1.1
 ## Dependencies: Questie
 ## SavedVariables: QuestTargetSettings
 

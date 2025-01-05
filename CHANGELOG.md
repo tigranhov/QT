@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.1] - 2024-01-24
+
+### Changed
+- Enhanced unit filtering system in MarkerManager and QuestObjectives
+- Improved code organization and documentation
+- Optimized marker configuration system
+
+### Fixed
+- Various bug fixes and performance improvements in unit filtering
+
 ## [1.1.0] - 2024-01-24
 
 ### Added
