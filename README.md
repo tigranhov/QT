@@ -39,6 +39,11 @@ The addon automatically activates when you log in. The target frame can be dragg
 
 ### Slash Commands
 
+#### Frequently Used Commands
+- `/qto add <name>` - Add a custom target by name
+- `/qto add target` - Add your current target as a custom target
+- `/qt keybind <key>` - Set the next target keybind
+
 #### Main Commands (`/qt` or `/questtarget`)
 - `/qt` - Toggle the target frame
 - `/qt show` - Show the target frame
@@ -46,7 +51,6 @@ The addon automatically activates when you log in. The target frame can be dragg
 - `/qt enable` - Enable the addon
 - `/qt disable` - Disable the addon
 - `/qt completed` - Toggle showing completed targets
-- `/qt keybind <key>` - Set the next target keybind
 - `/qt list` - List all current targets
 - `/qt help` - Show all available commands
 
