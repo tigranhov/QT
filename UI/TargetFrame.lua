@@ -142,11 +142,17 @@ local UIFactory = {
 
         -- Add movement handlers to title frame that control parent frame
         titleFrame:SetScript("OnDragStart", function()
-            parent:StartMoving()
+            if not parent.isMoving then
+                parent:StartMoving()
+                parent.isMoving = true
+            end
         end)
         titleFrame:SetScript("OnDragStop", function()
-            parent:StopMovingOrSizing()
-            SettingsManager.SavePosition(parent)
+            if parent.isMoving then
+                parent:StopMovingOrSizing()
+                parent.isMoving = false
+                SettingsManager.SavePosition(parent)
+            end
         end)
 
         local title = titleFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -228,7 +234,7 @@ function TargetFrame:CreateFrame()
     frame:SetSize(Constants.FRAME.MIN_WIDTH, Constants.FRAME.MIN_HEIGHT)
     frame:SetMovable(true)
     frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
+    frame:SetClampedToScreen(true)
     frame:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
         edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -237,13 +243,6 @@ function TargetFrame:CreateFrame()
         edgeSize = 16,
         insets = { left = 4, right = 4, top = 4, bottom = 4 }
     })
-
-    -- Add movement handlers
-    frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        SettingsManager.SavePosition(self)
-    end)
 
     -- Create child frames
     local titleFrame = UIFactory.CreateTitleFrame(frame)
