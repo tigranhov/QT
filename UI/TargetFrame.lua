@@ -388,7 +388,10 @@ function TargetFrame:Toggle()
 end
 
 function TargetFrame:CycleNextTarget()
-    if #self.buttons == 0 then return end
+    -- Don't do anything if there are no valid targets
+    if not self.buttons or #self.buttons == 0 then
+        return
+    end
 
     -- Increment index and wrap around
     self.currentTargetIndex = self.currentTargetIndex + 1
@@ -409,18 +412,24 @@ function TargetFrame:RegisterKeybinds()
     keybindButton:RegisterForClicks("AnyDown")
     keybindButton:SetAttribute("type", "macro")
     keybindButton:SetScript("PreClick", function()
-        -- Update the macro text right before the click
-        if #self.buttons > 0 then
+        -- Only update the macro text if there are valid targets
+        if self.buttons and #self.buttons > 0 then
             local nextIndex = (self.currentTargetIndex % #self.buttons) + 1
             local button = self.buttons[nextIndex]
             if button then
                 keybindButton:SetAttribute("macrotext", button:GetAttribute("macrotext"))
             end
+        else
+            -- Clear the macro text when there are no targets
+            keybindButton:SetAttribute("macrotext", "")
         end
     end)
 
     keybindButton:SetScript("PostClick", function()
-        self:CycleNextTarget()
+        -- Only cycle if there are valid targets
+        if self.buttons and #self.buttons > 0 then
+            self:CycleNextTarget()
+        end
     end)
 
     -- Set up the initial keybind
